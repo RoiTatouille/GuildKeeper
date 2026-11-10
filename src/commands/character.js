@@ -29,6 +29,12 @@ data: new SlashCommandBuilder()
         subcommand
             .setName('list')
             .setDescription('Affiche tes perso')
+            .addUserOption(option =>
+                option
+                    .setName('player')
+                    .setDescription('Voir les perso du joueur')
+                    .setRequired(false)
+            )
     )
 
     .addSubcommand(subcommand =>
@@ -96,25 +102,52 @@ async execute(interaction) {
             }
 
             case 'list': {
-                const characters = characterService.listCharacters(player.id);
+                const targetUser = interaction.options.getUser('player');
+                const isPlayerRegistered = targetUser !== null;
 
-                if (characters.length === 0) {
+                const targetPlayer = isPlayerRegistered
+                    ? playerService.getPlayerStats(interaction.guildId, targetUser.id)
+                    : player;
+
+                if (!targetPlayer) {
                     await interaction.reply({
-                        content: 'Tu ne possedes aucun perso',
-                        ephemeral: true
+                        content: `**${targetUser.displayName}** N'est pas actif dans la guilde`,
+                        ephemeral: false
                     });
                     break;
                 }
 
+                const characters = characterService.listCharacters(targetPlayer.id);
+
+                if (characters.length === 0) {
+                    await interaction.reply({
+                        content: isPlayerRegistered
+                            ? `**${targetUser.displayName}** a 0 perso`
+                            : `t'as 0 perso`,
+                        ephemeral: !isPlayerRegistered
+                    });
+                    break;
+                }
+
+                const displayName = isPlayerRegistered
+                    ? targetUser.displayName
+                    : interaction.member.displayName;
+
                 const characterList = characters
                     .map(character =>
-                        `**${character.name}** — Niveau ${character.level} (ID: ${character.id})`
+                        `**${character.name}** — Niveau ${character.level}`
                     )
                     .join('\n');
 
                 await interaction.reply({
-                    content: `**Tes personnages :**\n${characterList}`,
-                    ephemeral: true
+                    content: [
+                        `**Personnages de ${displayName} :**`,
+                        '',
+                        characterList,
+                        '',
+                        `*${characters.length} personnages*`
+                    ].join('\n'),
+                    ephemeral: !isPlayerRegistered
                 });
                 break;
             }
