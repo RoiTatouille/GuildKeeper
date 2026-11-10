@@ -2,6 +2,7 @@ import {
     localDateTimeToUtc,
     formatUtcDateTime
 } from '../utils/dateTime.js';
+import { validateDiscordId } from '../utils/validateDiscordId.js';
 
 export function createAvailabilityService(availabilityRepository) {
     function addAvailability(discordGuildId, start, end, createdByDiscordId) {
@@ -159,10 +160,4 @@ export function createAvailabilityService(availabilityRepository) {
         removeAvailability,
         listAvailability
     };
-}
-
-function validateDiscordId(value, fieldName) {
-    if (typeof value !== 'string' || !value.trim()) {
-        throw new TypeError(`${fieldName} ne doit pas etre vide`);
-    }
 }
