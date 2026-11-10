@@ -1,3 +1,5 @@
+import { validateDiscordId } from '../utils/validateDiscordId.js';
+
 export function createPlayerService(playerRepository) {
     /**
      * Retrieves an existing player or creates one.
@@ -29,10 +31,4 @@ export function createPlayerService(playerRepository) {
         getOrCreatePlayer,
         getPlayerStats
     };
-}
-
-function validateDiscordId(value, fieldName) {
-    if (typeof value !== 'string' || !value.trim()) {
-        throw new TypeError(`${fieldName} must be a non-empty string`);
-    }
 }
