@@ -10,6 +10,7 @@ export function createQuestService(questRepository) {
     function validateQuestData({
         title,
         description,
+        requirements,
         xpReward,
         minLevel,
         maxPlayers
@@ -24,6 +25,14 @@ export function createQuestService(questRepository) {
             description.trim().length > 4000
         ) {
             throw new Error('La description doit contenir entre 1 et 4000 caractères');
+        }
+
+        if (
+            requirements !== null &&
+            requirements !== undefined &&
+            (typeof requirements !== 'string' || requirements.trim().length > 1000)
+        ) {
+            throw new Error('Les prérequis ne peuvent pas dépasser 1000 caractères');
         }
 
         if (!Number.isSafeInteger(xpReward) || xpReward < 0) {
@@ -48,6 +57,7 @@ export function createQuestService(questRepository) {
             discordGuildId,
             data.title.trim(),
             data.description.trim(),
+            data.requirements?.trim() || null,
             data.xpReward,
             data.minLevel,
             data.maxPlayers,
@@ -72,6 +82,7 @@ export function createQuestService(questRepository) {
         const updatedData = {
             title: data.title ?? quest.title,
             description: data.description ?? quest.description,
+            requirements: data.requirements ?? quest.requirements,
             xpReward: data.xpReward ?? quest.xpReward,
             minLevel: data.minLevel ?? quest.minLevel,
             maxPlayers: data.maxPlayers ?? quest.maxPlayers
@@ -84,6 +95,7 @@ export function createQuestService(questRepository) {
             questId,
             updatedData.title.trim(),
             updatedData.description.trim(),
+            updatedData.requirements,
             updatedData.xpReward,
             updatedData.minLevel,
             updatedData.maxPlayers
