@@ -1,29 +1,82 @@
 import { validateDiscordId } from '../utils/validateDiscordId.js';
 
-export function createSessionService(sessionRepository) {
+export function createSessionService(sessionRepository, questPublisher) {
     function validateId(value, name) {
         if (!Number.isSafeInteger(value) || value <= 0) {
             throw new Error(`${name} invalide`);
         }
     }
 
-    function proposeSession(discordGuildId, questId, slotId, reservedByDiscordId) {
+    async function proposeSession(
+        discordGuildId,
+        questId,
+        slotId,
+        reservedByDiscordId,
+        participantIds
+    ) {
+
         validateDiscordId(discordGuildId);
         validateDiscordId(reservedByDiscordId);
         validateId(questId, 'Identifiant de quête');
         validateId(slotId, 'Identifiant de créneau');
 
+        if (!Array.isArray(participantIds) || participantIds.length === 0) {
+            throw new Error('Aucun participant renseigné');
+        }
+
+        for (const participantId of participantIds) {
+            validateDiscordId(participantId);
+        }
+
+        if (new Set(participantIds).size !== participantIds.length) {
+            throw new Error(`Un participant ne peut être indiqué qu'une fois`);
+        }
+
         const quest = sessionRepository.findQuestById(discordGuildId, questId);
 
         if (!quest || quest.status !== 'OPEN') {
-            throw new Error('Cette quête n’est pas disponible à la réservation');
+            throw new Error(`Cette quête n'est pas disponible à la réservation`);
         }
 
-        const participants = sessionRepository.findParticipantsByQuestId(questId);
+        const reactionUserIds = await questPublisher.getQuestReactionUserIds(
+            discordGuildId,
+            quest.activeQuestsChannelId,
+            quest.discordMessageId
+        );
 
-        if (participants.length === 0) {
-            throw new Error('Aucun joueur n’est inscrit à cette quête');
+        const suppliedIds = new Set(participantIds);
+        const reactedIds = new Set(reactionUserIds);
+
+        const missingReactions = participantIds.filter(
+            id => !reactedIds.has(id)
+        );
+
+        const missingParticipants = reactionUserIds.filter(
+            id => !suppliedIds.has(id)
+        );
+
+        //DEBUG
+        console.log('Quête :', {
+            id: questId,
+            discordMessageId: quest.discordMessageId,
+            channelId: quest.activeQuestsChannelId
+        });
+
+        console.log('Participants fournis :', participantIds);
+        console.log('Réactions récupérées :', reactionUserIds);
+        console.log('Réactions manquantes :', missingReactions);
+        console.log('Participants supplémentaires :', missingParticipants);
+
+        if (missingReactions.length > 0 || missingParticipants.length > 0) {
+            throw new Error(
+                'La liste des participants ne correspond pas exactement aux réactions ✅ de la quête'
+            );
         }
+
+        const participants = sessionRepository.findPlayersByDiscordUserIds(
+            discordGuildId,
+            participantIds
+        );
 
         const players = new Map();
 
@@ -45,8 +98,22 @@ export function createSessionService(sessionRepository) {
             }
         }
 
+        if (players.size !== participantIds.length) {
+            const registeredIds = new Set(
+                [...players.values()].map(player => player.discordUserId)
+            );
+
+            const unregisteredIds = participantIds.filter(
+                id => !registeredIds.has(id)
+            );
+
+            throw new Error(
+                `Les joueurs suivants ne sont pas enregistrés : ${unregisteredIds.map(id => `<@${id}>`).join(', ')}`
+            );
+        }
+
         if (players.size > quest.maxPlayers) {
-            throw new Error('Le nombre de joueurs inscrits dépasse la limite de cette quête');
+            throw new Error('Le nombre de participants dépasse la limite de cette quête');
         }
 
         const warnings = [];
@@ -77,11 +144,7 @@ export function createSessionService(sessionRepository) {
         const slot = sessionRepository.findActiveSlotById(discordGuildId, slotId);
 
         if (!slot) {
-            throw new Error('Ce créneau n’est pas disponible');
-        }
-
-        if (sessionRepository.isSlotReserved(slotId)) {
-            throw new Error('Ce créneau est déjà réservé');
+            throw new Error(`Ce créneau n'est pas disponible`);
         }
 
         try {
@@ -94,7 +157,20 @@ export function createSessionService(sessionRepository) {
             );
 
             if (!reservation) {
-                throw new Error('La quête ou le créneau n’est plus disponible');
+                throw new Error(`La quête ou le créneau n'est plus disponible`);
+            }
+
+            let discordWarning = null;
+
+            try {
+                await questPublisher.markQuestInProgress(
+                    discordGuildId,
+                    quest.activeQuestsChannelId,
+                    quest.discordMessageId
+                );
+            } catch (error) {
+                console.error('Impossible de mettre à jour le tag Discord :', error);
+                discordWarning = 'La réservation est confirmée mais le tagest incorrect';
             }
 
             return {
@@ -102,14 +178,15 @@ export function createSessionService(sessionRepository) {
                 questTitle: quest.title,
                 startsAt: slot.startsAt,
                 endsAt: slot.endsAt,
-                warnings
+                warnings,
+                discordWarning
             };
         } catch (error) {
             if (
                 error.code === 'SQLITE_CONSTRAINT_UNIQUE' ||
                 error.code === 'SQLITE_CONSTRAINT_PRIMARYKEY'
             ) {
-                throw new Error('Cette quête ou ce créneau vient d’être réservé');
+                throw new Error(`Cette quête ou ce créneau vient d'être réservé`);
             }
 
             throw error;

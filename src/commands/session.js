@@ -23,18 +23,46 @@ export default {
                         .setRequired(true)
                         .setMinValue(1)
                 )
+                .addStringOption(option =>
+                    option
+                        .setName('participants')
+                        .setDescription('mentions participants pour inscrire')
+                        .setRequired(true)
+                        .setMaxLength(1000)
+                )
         ),
 
     async execute(interaction) {
         const questId = interaction.options.getInteger('quest');
         const slotId = interaction.options.getInteger('slot');
+        const participantsInput = interaction.options.getString('participants');
+
+        const mentions = [...participantsInput.matchAll(/<@!?(\d+)>/g)];
+        const remainingInput = participantsInput.replace(/<@!?\d+>/g, '').trim();
+
+        if (mentions.length === 0 || remainingInput.length > 0) {
+            return interaction.reply({
+                content: 'Indique les participants uniquement avec leurs mentions Discord',
+                ephemeral: true
+            });
+        }
+
+        const participantIds = mentions.map(mention => mention[1]);
+
+        if (new Set(participantIds).size !== participantIds.length) {
+            return interaction.reply({
+                content: `Un participant ne peut être ajouté qu'une fois`,
+                ephemeral: true
+            });
+        }
 
         try {
-            const reservation = sessionService.proposeSession(
+            const reservation = await sessionService.proposeSession(
                 interaction.guildId,
                 questId,
                 slotId,
-                interaction.user.id
+                interaction.user.id,
+                participantIds
             );
 
             const startsAt = Math.floor(new Date(reservation.startsAt).getTime() / 1000);
@@ -56,6 +84,10 @@ export default {
 
                     message += `\n<@${warning.discordUserId}> : ${characters}`;
                 }
+            }
+
+            if (reservation.discordWarning) {
+                message += `\n\n${reservation.discordWarning}`;
             }
 
             await interaction.reply({

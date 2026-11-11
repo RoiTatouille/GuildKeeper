@@ -8,6 +8,8 @@ export function findQuestById(discordGuildId, questId) {
             active_quests.title,
             active_quests.min_level AS minLevel,
             active_quests.max_players AS maxPlayers,
+            active_quests.discord_message_id AS discordMessageId,
+            guilds.active_quests_channel_id AS activeQuestsChannelId,
             active_quests.status
         FROM active_quests
         INNER JOIN guilds ON guilds.id = active_quests.guild_id
@@ -16,7 +18,13 @@ export function findQuestById(discordGuildId, questId) {
     `).get(discordGuildId, questId) ?? null;
 }
 
-export function findParticipantsByQuestId(questId) {
+export function findPlayersByDiscordUserIds(discordGuildId, discordUserIds) {
+    if (discordUserIds.length === 0) {
+        return [];
+    }
+
+    const placeholders = discordUserIds.map(() => '?').join(', ');
+
     return db.prepare(`
         SELECT
             players.id AS playerId,
@@ -24,12 +32,13 @@ export function findParticipantsByQuestId(questId) {
             characters.id AS characterId,
             characters.name AS characterName,
             characters.level AS characterLevel
-        FROM quest_participants
-        INNER JOIN players ON players.id = quest_participants.player_id
+        FROM players
+        INNER JOIN guilds ON guilds.id = players.guild_id
         LEFT JOIN characters ON characters.player_id = players.id
-        WHERE quest_participants.active_quest_id = ?
+        WHERE guilds.discord_guild_id = ?
+          AND players.discord_user_id IN (${placeholders})
         ORDER BY players.id, characters.name COLLATE NOCASE
-    `).all(questId);
+    `).all(discordGuildId, ...discordUserIds);
 }
 
 export function findActiveSlotById(discordGuildId, slotId) {
@@ -83,6 +92,17 @@ const createReservationTransaction = db.transaction((
         return null;
     }
 
+    const reservedSlot = db.prepare(`
+        SELECT 1
+        FROM sessions
+        WHERE available_slot_id = ?
+        AND status = 'SCHEDULED'
+    `).get(slotId);
+
+    if (reservedSlot) {
+        return null;
+    }
+
     const session = db.prepare(`
         INSERT INTO sessions (
             guild_id,
@@ -92,6 +112,19 @@ const createReservationTransaction = db.transaction((
         )
         VALUES (?, ?, ?, ?)
     `).run(guildId, questId, slotId, reservedByDiscordId);
+
+    const insertQuestParticipant = db.prepare(`
+        INSERT INTO quest_participants (
+            guild_id,
+            active_quest_id,
+            player_id
+        )
+        VALUES (?, ?, ?)
+    `);
+
+    for (const playerId of playerIds) {
+        insertQuestParticipant.run(guildId, questId, playerId);
+    }
 
     const insertSessionPlayer = db.prepare(`
         INSERT INTO session_players (
@@ -106,12 +139,18 @@ const createReservationTransaction = db.transaction((
         insertSessionPlayer.run(guildId, session.lastInsertRowid, playerId);
     }
 
-    db.prepare(`
+    const updateQuest = db.prepare(`
         UPDATE active_quests
         SET status = 'RESERVED',
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = ? AND guild_id = ?
+        WHERE id = ?
+        AND guild_id = ?
+        AND status = 'OPEN'
     `).run(questId, guildId);
+
+    if (updateQuest.changes !== 1) {
+        throw new Error(`Cette quête n'est plus disponible`);
+    }
 
     return {
         id: Number(session.lastInsertRowid),

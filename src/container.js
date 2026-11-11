@@ -10,7 +10,6 @@ import { createAvailabilityService } from './services/availabilityService.js';
 import { createSessionService } from './services/sessionService.js';
 import { createPlayerService } from './services/playerService.js';
 import { createCharacterService } from './services/characterService.js';
-import { createAvailabilityService } from './services/availabilityService.js';
 import { createQuestService } from './services/questService.js';
 import { createGuildService } from './services/guildService.js';
 
@@ -23,4 +22,7 @@ export const questService = createQuestService(
     guildRepository,
     questPublisher
 );
-export const sessionService = createSessionService(sessionRepository);
+export const sessionService = createSessionService(
+    sessionRepository,
+    questPublisher
+);
