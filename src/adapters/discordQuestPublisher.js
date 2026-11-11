@@ -21,7 +21,7 @@ function buildQuestEmbed(quest) {
 
 export async function publishQuest(discordGuildId, channelId, quest) {
     if (!client) {
-        throw new Error('Le client Discord n’est pas initialisé');
+        throw new Error(`Le client Discord n'est pas initialisé`);
     }
 
     const channel = await client.channels.fetch(channelId);
@@ -31,7 +31,7 @@ export async function publishQuest(discordGuildId, channelId, quest) {
         channel.type !== ChannelType.GuildForum ||
         channel.guildId !== discordGuildId
     ) {
-        throw new Error('Le salon configuré n’est pas un forum');
+        throw new Error(`Le salon configuré n'est pas un forum`);
     }
 
     const availableTag = channel.availableTags.find(
@@ -57,7 +57,7 @@ export async function publishQuest(discordGuildId, channelId, quest) {
 
 export async function updateQuestPost(discordGuildId, channelId, threadId, quest) {
     if (!client) {
-        throw new Error('Le client Discord n’est pas initialisé');
+        throw new Error(`Le client Discord n'est pas initialisé`);
     }
 
     const channel = await client.channels.fetch(channelId);
@@ -67,7 +67,7 @@ export async function updateQuestPost(discordGuildId, channelId, threadId, quest
         channel.type !== ChannelType.GuildForum ||
         channel.guildId !== discordGuildId
     ) {
-        throw new Error(`Le salon configuré n’est pas un forum`);
+        throw new Error(`Le salon configuré n'est pas un forum`);
     }
 
     const thread = await channel.threads.fetch(threadId);
@@ -87,6 +87,39 @@ export async function updateQuestPost(discordGuildId, channelId, threadId, quest
     await starterMessage.edit({
         embeds: [buildQuestEmbed(quest)]
     });
+}
+
+export async function cancelQuestPost(discordGuildId, channelId, threadId) {
+    if (!client) {
+        throw new Error(`Le client Discord n'est pas initialisé`);
+    }
+
+    const channel = await client.channels.fetch(channelId);
+
+    if (
+        !channel ||
+        channel.type !== ChannelType.GuildForum ||
+        channel.guildId !== discordGuildId
+    ) {
+        throw new Error(`Le salon configuré n'est pas un forum`);
+    }
+
+    const cancelledTag = channel.availableTags.find(
+        tag => tag.name === 'Annulée'
+    );
+
+    if (!cancelledTag) {
+        throw new Error('Le tag Annulée est absent');
+    }
+
+    const thread = await channel.threads.fetch(threadId);
+
+    if (!thread) {
+        throw new Error('Le post Discord est introuvable');
+    }
+
+    await thread.setAppliedTags([cancelledTag.id]);
+    await thread.setArchived(true);
 }
 
 export async function deleteQuestPost(channelId, threadId) {

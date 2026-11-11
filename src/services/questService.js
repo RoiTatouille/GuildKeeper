@@ -175,7 +175,7 @@ export function createQuestService(
         return questRepository.findById(discordGuildId, questId);
     }
 
-    function cancelQuest(discordGuildId, questId) {
+    async function cancelQuest(discordGuildId, questId) {
         validateDiscordId(discordGuildId);
         validateQuestId(questId);
 
@@ -188,6 +188,18 @@ export function createQuestService(
         if (quest.status !== 'OPEN') {
             throw new Error(`je ne peux l'annuler`);
         }
+
+        const guild = guildRepository.findByDiscordId(discordGuildId);
+
+        if (!guild?.activeQuestsChannelId || !quest.discordMessageId) {
+            throw new Error('Impossible de retrouver le post');
+        }
+
+        await questPublisher.cancelQuestPost(
+            discordGuildId,
+            guild.activeQuestsChannelId,
+            quest.discordMessageId
+        );
 
         return questRepository.cancel(discordGuildId, questId);
     }

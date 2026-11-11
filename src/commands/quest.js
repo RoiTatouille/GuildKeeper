@@ -174,7 +174,7 @@ export default {
             if (subcommand === 'cancel') {
                 const questId = interaction.options.getInteger('id');
 
-                questService.cancelQuest(interaction.guildId, questId);
+                await questService.cancelQuest(interaction.guildId, questId);
 
                 await interaction.reply({
                     content: `Quête #${questId} annulé`
