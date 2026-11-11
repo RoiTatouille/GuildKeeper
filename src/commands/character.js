@@ -135,7 +135,7 @@ async execute(interaction) {
 
                 const characterList = characters
                     .map(character =>
-                        `**${character.name}** — Niveau ${character.level}`
+                        `**${character.name}** — Niveau ${character.level} - ID ${character.id}`
                     )
                     .join('\n');
 
