@@ -60,7 +60,13 @@ export function findActiveByGuild(discordGuildId) {
         FROM available_slots
         INNER JOIN guilds ON guilds.id = available_slots.guild_id
         WHERE guilds.discord_guild_id = ?
-          AND available_slots.is_active = 1
+            AND available_slots.is_active = 1
+            AND NOT EXISTS (
+                SELECT 1
+                FROM sessions
+                WHERE sessions.available_slot_id = available_slots.id
+                AND sessions.status = 'SCHEDULED'
+            )
         ORDER BY available_slots.starts_at
     `).all(discordGuildId);
 }
