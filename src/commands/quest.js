@@ -37,6 +37,12 @@ export default {
                         .setRequired(true)
                         .setMinValue(1)
                 )
+                .addStringOption(option =>
+                    option
+                        .setName('requirements')
+                        .setDescription('Prérequis de quête')
+                        .setMaxLength(1000)
+                )
                 .addIntegerOption(option =>
                     option
                         .setName('min_level')
@@ -66,6 +72,12 @@ export default {
                         .setName('description')
                         .setDescription('Nouvelle description')
                         .setMaxLength(4000)
+                )
+                .addStringOption(option =>
+                    option
+                        .setName('requirements')
+                        .setDescription('Prérequis de quête')
+                        .setMaxLength(1000)
                 )
                 .addIntegerOption(option =>
                     option
@@ -110,12 +122,13 @@ export default {
 
         try {
             if (subcommand === 'create') {
-                const quest = questService.createQuest(
+                const quest = await questService.createQuest(
                     interaction.guildId,
                     interaction.user.id,
                     {
                         title: interaction.options.getString('title'),
                         description: interaction.options.getString('description'),
+                        requirements: interaction.options.getString('requirements'),
                         xpReward: interaction.options.getInteger('xp'),
                         minLevel: interaction.options.getInteger('min_level') ?? 1,
                         maxPlayers: interaction.options.getInteger('max_players')
@@ -138,12 +151,13 @@ export default {
             if (subcommand === 'edit') {
                 const questId = interaction.options.getInteger('id');
 
-                const quest = questService.editQuest(
+                const quest = await questService.editQuest(
                     interaction.guildId,
                     questId,
                     {
                         title: interaction.options.getString('title'),
                         description: interaction.options.getString('description'),
+                        requirements: interaction.options.getString('requirements'),
                         xpReward: interaction.options.getInteger('xp'),
                         minLevel: interaction.options.getInteger('min_level'),
                         maxPlayers: interaction.options.getInteger('max_players')
@@ -160,7 +174,7 @@ export default {
             if (subcommand === 'cancel') {
                 const questId = interaction.options.getInteger('id');
 
-                questService.cancelQuest(interaction.guildId, questId);
+                await questService.cancelQuest(interaction.guildId, questId);
 
                 await interaction.reply({
                     content: `Quête #${questId} annulé`
@@ -186,7 +200,9 @@ export default {
                     `Statut : ${quest.status}`,
                     `XP : ${quest.xpReward}`,
                     `Niveau minimum : ${quest.minLevel}`,
-                    `Joueurs maximum : ${quest.maxPlayers}`
+                    `Joueurs maximum : ${quest.maxPlayers}`,
+                    `Requirement : ${quest.requirements !== null ? quest.requirements : ''}`,
+                    `Description : ${quest.description}`
                 ].join('\n')).join('\n\n');
 
                 await interaction.reply({

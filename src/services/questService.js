@@ -1,6 +1,10 @@
 import { validateDiscordId } from '../utils/validateDiscordId.js';
 
-export function createQuestService(questRepository) {
+export function createQuestService(
+    questRepository,
+    guildRepository,
+    questPublisher
+) {
     function validateQuestId(questId) {
         if (!Number.isSafeInteger(questId) || questId <= 0) {
             throw new Error('Identifiant de quête invalide');
@@ -10,6 +14,7 @@ export function createQuestService(questRepository) {
     function validateQuestData({
         title,
         description,
+        requirements,
         xpReward,
         minLevel,
         maxPlayers
@@ -26,6 +31,14 @@ export function createQuestService(questRepository) {
             throw new Error('La description doit contenir entre 1 et 4000 caractères');
         }
 
+        if (
+            requirements !== null &&
+            requirements !== undefined &&
+            (typeof requirements !== 'string' || requirements.trim().length > 1000)
+        ) {
+            throw new Error('Les prérequis ne peuvent pas dépasser 1000 caractères');
+        }
+
         if (!Number.isSafeInteger(xpReward) || xpReward < 0) {
             throw new Error('XP erroné');
         }
@@ -39,23 +52,68 @@ export function createQuestService(questRepository) {
         }
     }
 
-    function createQuest(discordGuildId, createdByDiscordId, data) {
+    async function createQuest(discordGuildId, createdByDiscordId, data) {
         validateDiscordId(discordGuildId);
         validateDiscordId(createdByDiscordId);
         validateQuestData(data);
 
-        return questRepository.create(
+        const quest = questRepository.create(
             discordGuildId,
             data.title.trim(),
             data.description.trim(),
+            data.requirements?.trim() || null,
             data.xpReward,
             data.minLevel,
             data.maxPlayers,
             createdByDiscordId
         );
+
+        const guild = guildRepository.findByDiscordId(discordGuildId);
+
+        if (!guild?.activeQuestsChannelId) {
+            questRepository.cancel(discordGuildId, quest.id);
+            throw new Error('Aucun salon de quêtes configuré');
+        }
+
+        let discordMessageId = null;
+
+        try {
+            discordMessageId = await questPublisher.publishQuest(
+                discordGuildId,
+                guild.activeQuestsChannelId,
+                quest
+            );
+
+            const saved = questRepository.setDiscordMessageId(
+                discordGuildId,
+                quest.id,
+                discordMessageId
+            );
+
+            if (!saved) {
+                throw new Error('Impossible d’enregistrer le post Discord');
+            }
+
+            return questRepository.findById(discordGuildId, quest.id);
+        } catch (error) {
+            if (discordMessageId) {
+                try {
+                    await questPublisher.deleteQuestPost(
+                        guild.activeQuestsChannelId,
+                        discordMessageId
+                    );
+                } catch (cleanupError) {
+                    console.error('Impossible de supprimer le post Discord :', cleanupError);
+                }
+            }
+
+            questRepository.cancel(discordGuildId, quest.id);
+
+            throw new Error(`Échec de publication de la quête : ${error.message}`);
+        }
     }
 
-    function editQuest(discordGuildId, questId, data) {
+    async function editQuest(discordGuildId, questId, data) {
         validateDiscordId(discordGuildId);
         validateQuestId(questId);
 
@@ -72,6 +130,7 @@ export function createQuestService(questRepository) {
         const updatedData = {
             title: data.title ?? quest.title,
             description: data.description ?? quest.description,
+            requirements: data.requirements ?? quest.requirements,
             xpReward: data.xpReward ?? quest.xpReward,
             minLevel: data.minLevel ?? quest.minLevel,
             maxPlayers: data.maxPlayers ?? quest.maxPlayers
@@ -79,18 +138,44 @@ export function createQuestService(questRepository) {
 
         validateQuestData(updatedData);
 
-        return questRepository.update(
+        const guild = guildRepository.findByDiscordId(discordGuildId);
+
+        if (!guild?.activeQuestsChannelId || !quest.discordMessageId) {
+            throw new Error('Impossible de retrouver le post Discord de cette quête');
+        }
+
+        const normalizedData = {
+            ...updatedData,
+            title: updatedData.title.trim(),
+            description: updatedData.description.trim(),
+            requirements: updatedData.requirements?.trim() || null
+        };
+
+        await questPublisher.updateQuestPost(
+            discordGuildId,
+            guild.activeQuestsChannelId,
+            quest.discordMessageId,
+            {
+                ...quest,
+                ...normalizedData
+            }
+        );
+
+        questRepository.update(
             discordGuildId,
             questId,
-            updatedData.title.trim(),
-            updatedData.description.trim(),
-            updatedData.xpReward,
-            updatedData.minLevel,
-            updatedData.maxPlayers
+            normalizedData.title,
+            normalizedData.description,
+            normalizedData.requirements,
+            normalizedData.xpReward,
+            normalizedData.minLevel,
+            normalizedData.maxPlayers
         );
+
+        return questRepository.findById(discordGuildId, questId);
     }
 
-    function cancelQuest(discordGuildId, questId) {
+    async function cancelQuest(discordGuildId, questId) {
         validateDiscordId(discordGuildId);
         validateQuestId(questId);
 
@@ -103,6 +188,18 @@ export function createQuestService(questRepository) {
         if (quest.status !== 'OPEN') {
             throw new Error(`je ne peux l'annuler`);
         }
+
+        const guild = guildRepository.findByDiscordId(discordGuildId);
+
+        if (!guild?.activeQuestsChannelId || !quest.discordMessageId) {
+            throw new Error('Impossible de retrouver le post');
+        }
+
+        await questPublisher.cancelQuestPost(
+            discordGuildId,
+            guild.activeQuestsChannelId,
+            quest.discordMessageId
+        );
 
         return questRepository.cancel(discordGuildId, questId);
     }

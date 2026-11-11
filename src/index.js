@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { Client, GatewayIntentBits } from 'discord.js';
 import { loadCommands } from './handlers/commandHandler.js';
 import { runMigrations } from './database/migrationRunner.js';
+import { setDiscordClient } from './adapters/discordQuestPublisher.js';
 
 if (!process.env.DISCORD_TOKEN) {
     throw new Error('DISCORD_TOKEN is missing from .env');
@@ -14,6 +15,7 @@ const client = new Client({
         GatewayIntentBits.Guilds
     ]
 });
+setDiscordClient(client);
 
 const commands = await loadCommands();
 

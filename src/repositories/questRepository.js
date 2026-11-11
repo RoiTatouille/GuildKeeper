@@ -4,10 +4,11 @@ const createQuestTransaction = db.transaction((
     discordGuildId,
     title,
     description,
+    requirements,
     xpReward,
     minLevel,
     maxPlayers,
-    createdByDiscordId
+    createdByDiscordId,
 ) => {
     db.prepare(`
         INSERT INTO guilds (discord_guild_id)
@@ -26,16 +27,18 @@ const createQuestTransaction = db.transaction((
             guild_id,
             title,
             description,
+            requirements,
             xp_reward,
             min_level,
             max_players,
             created_by_discord_id
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
         guild.id,
         title,
         description,
+        requirements,
         xpReward,
         minLevel,
         maxPlayers,
@@ -49,6 +52,7 @@ export function create(
     discordGuildId,
     title,
     description,
+    requirements,
     xpReward,
     minLevel,
     maxPlayers,
@@ -58,6 +62,7 @@ export function create(
         discordGuildId,
         title,
         description,
+        requirements,
         xpReward,
         minLevel,
         maxPlayers,
@@ -72,6 +77,7 @@ export function findById(discordGuildId, questId) {
             active_quests.guild_id AS guildId,
             active_quests.title,
             active_quests.description,
+            active_quests.requirements,
             active_quests.xp_reward AS xpReward,
             active_quests.min_level AS minLevel,
             active_quests.max_players AS maxPlayers,
@@ -94,6 +100,7 @@ export function findAllByGuild(discordGuildId) {
             active_quests.id,
             active_quests.title,
             active_quests.description,
+            active_quests.requirements,
             active_quests.xp_reward AS xpReward,
             active_quests.min_level AS minLevel,
             active_quests.max_players AS maxPlayers,
@@ -112,6 +119,7 @@ export function update(
     questId,
     title,
     description,
+    requirements,
     xpReward,
     minLevel,
     maxPlayers
@@ -121,6 +129,7 @@ export function update(
         SET
             title = ?,
             description = ?,
+            requirements = ?,
             xp_reward = ?,
             min_level = ?,
             max_players = ?,
@@ -135,6 +144,7 @@ export function update(
     `).run(
         title,
         description,
+        requirements,
         xpReward,
         minLevel,
         maxPlayers,
