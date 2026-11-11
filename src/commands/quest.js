@@ -151,7 +151,7 @@ export default {
             if (subcommand === 'edit') {
                 const questId = interaction.options.getInteger('id');
 
-                const quest = questService.editQuest(
+                const quest = await questService.editQuest(
                     interaction.guildId,
                     questId,
                     {

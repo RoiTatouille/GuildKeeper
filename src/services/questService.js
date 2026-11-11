@@ -113,7 +113,7 @@ export function createQuestService(
         }
     }
 
-    function editQuest(discordGuildId, questId, data) {
+    async function editQuest(discordGuildId, questId, data) {
         validateDiscordId(discordGuildId);
         validateQuestId(questId);
 
@@ -138,16 +138,41 @@ export function createQuestService(
 
         validateQuestData(updatedData);
 
-        return questRepository.update(
+        const guild = guildRepository.findByDiscordId(discordGuildId);
+
+        if (!guild?.activeQuestsChannelId || !quest.discordMessageId) {
+            throw new Error('Impossible de retrouver le post Discord de cette quête');
+        }
+
+        const normalizedData = {
+            ...updatedData,
+            title: updatedData.title.trim(),
+            description: updatedData.description.trim(),
+            requirements: updatedData.requirements?.trim() || null
+        };
+
+        await questPublisher.updateQuestPost(
+            discordGuildId,
+            guild.activeQuestsChannelId,
+            quest.discordMessageId,
+            {
+                ...quest,
+                ...normalizedData
+            }
+        );
+
+        questRepository.update(
             discordGuildId,
             questId,
-            updatedData.title.trim(),
-            updatedData.description.trim(),
-            updatedData.requirements,
-            updatedData.xpReward,
-            updatedData.minLevel,
-            updatedData.maxPlayers
+            normalizedData.title,
+            normalizedData.description,
+            normalizedData.requirements,
+            normalizedData.xpReward,
+            normalizedData.minLevel,
+            normalizedData.maxPlayers
         );
+
+        return questRepository.findById(discordGuildId, questId);
     }
 
     function cancelQuest(discordGuildId, questId) {
