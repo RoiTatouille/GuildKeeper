@@ -130,3 +130,103 @@ export async function deleteQuestPost(channelId, threadId) {
         await thread.delete();
     }
 }
+
+export async function getQuestReactionUserIds(discordGuildId, channelId, threadId) {
+    if (!client) {
+        throw new Error(`Le client Discord n'est pas initialisé`);
+    }
+
+    const channel = await client.channels.fetch(channelId);
+
+    if (
+        !channel ||
+        channel.type !== ChannelType.GuildForum ||
+        channel.guildId !== discordGuildId
+    ) {
+        throw new Error(`Le salon configuré n'est pas un forum`);
+    }
+
+    const thread = await channel.threads.fetch(threadId);
+
+    if (!thread) {
+        throw new Error('Le post Discord de cette quête est introuvable');
+    }
+
+    const message = await thread.messages.fetch({
+        message: thread.id,
+        force: true
+    });
+
+    if (!message) {
+        throw new Error('Le message initial de cette quête est introuvable');
+    }
+
+    const reaction = message.reactions.cache.find(
+        reaction => reaction.emoji.name === '✅'
+    );
+
+    if (!reaction) {
+        return [];
+    }
+
+    const users = await reaction.users.fetch();
+
+    console.log('Réactions disponibles :', message.reactions.cache.map(
+        reaction => ({
+            emoji: reaction.emoji.name,
+            count: reaction.count
+        })
+    ));
+
+    //DEBUG
+    console.log('Réaction récupérée :', {
+        emoji: reaction.emoji.name,
+        count: reaction.count,
+        users: [...users.keys()],
+        botId: client.user.id
+    });
+
+    console.log('Utilisateurs récupérés :', [...users.keys()]);
+
+    return [...users.keys()].filter(userId => userId !== client.user.id);
+}
+
+export async function markQuestInProgress(discordGuildId, channelId, threadId) {
+    if (!client) {
+        throw new Error(`Le client Discord n'est pas initialisé`);
+    }
+
+    const channel = await client.channels.fetch(channelId);
+
+    if (
+        !channel ||
+        channel.type !== ChannelType.GuildForum ||
+        channel.guildId !== discordGuildId
+    ) {
+        throw new Error(`Le salon configuré n'est pas un forum`);
+    }
+
+    const inProgressTag = channel.availableTags.find(
+        tag => tag.name === 'En cours'
+    );
+
+    if (!inProgressTag) {
+        throw new Error('Le tag En cours est absent du forum');
+    }
+
+    const thread = await channel.threads.fetch(threadId);
+
+    if (!thread) {
+        throw new Error('Le post Discord de cette quête est introuvable');
+    }
+
+    const tags = thread.appliedTags.filter(
+        tagId => tagId !== channel.availableTags.find(tag => tag.name === 'Disponible')?.id
+    );
+
+    if (!tags.includes(inProgressTag.id)) {
+        tags.push(inProgressTag.id);
+    }
+
+    await thread.setAppliedTags(tags);
+}

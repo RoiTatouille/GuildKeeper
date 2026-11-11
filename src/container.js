@@ -4,10 +4,12 @@ import * as availabilityRepository from './repositories/availabilityRepository.j
 import * as questRepository from './repositories/questRepository.js';
 import * as guildRepository from './repositories/guildRepository.js';
 import * as questPublisher from './adapters/discordQuestPublisher.js';
+import * as sessionRepository from './repositories/sessionRepository.js';
 
+import { createAvailabilityService } from './services/availabilityService.js';
+import { createSessionService } from './services/sessionService.js';
 import { createPlayerService } from './services/playerService.js';
 import { createCharacterService } from './services/characterService.js';
-import { createAvailabilityService } from './services/availabilityService.js';
 import { createQuestService } from './services/questService.js';
 import { createGuildService } from './services/guildService.js';
 
@@ -18,5 +20,9 @@ export const guildService = createGuildService(guildRepository);
 export const questService = createQuestService(
     questRepository,
     guildRepository,
+    questPublisher
+);
+export const sessionService = createSessionService(
+    sessionRepository,
     questPublisher
 );
