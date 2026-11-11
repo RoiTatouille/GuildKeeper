@@ -158,23 +158,45 @@ export default {
                         break;
                     }
 
-                    const slotList = result.slots.map(slot =>
-                        [
+                    const header = [
+                        `**Disponibilités du MJ**`,
+                        `Fuseau horaire : \`${result.timezone}\``,
+                        ''
+                    ].join('\n');
+
+                    const messages = [];
+                    let currentMessage = header;
+
+                    for (const slot of result.slots) {
+                        const slotMessage = [
                             `**Créneau #${slot.id}**`,
                             `Début : ${slot.startsAtFormatted}`,
                             `Fin : ${slot.endsAtFormatted}`
-                        ].join('\n')
-                    ).join('\n\n');
+                        ].join('\n');
+
+                        const separator = currentMessage === header ? '' : '\n\n';
+
+                        if (currentMessage.length + separator.length + slotMessage.length > 2000) {
+                            messages.push(currentMessage);
+                            currentMessage = header + slotMessage;
+                        } else {
+                            currentMessage += separator + slotMessage;
+                        }
+                    }
+
+                    messages.push(currentMessage);
 
                     await interaction.reply({
-                        content: [
-                            `**Disponibilités du MJ**`,
-                            `Fuseau horaire : \`${result.timezone}\``,
-                            '',
-                            slotList
-                        ].join('\n'),
+                        content: messages[0],
                         ephemeral: false
                     });
+
+                    for (const message of messages.slice(1)) {
+                        await interaction.followUp({
+                            content: message,
+                            ephemeral: false
+                        });
+                    }
                     break;
                 }
             }
