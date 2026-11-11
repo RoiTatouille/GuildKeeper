@@ -122,7 +122,7 @@ export default {
 
         try {
             if (subcommand === 'create') {
-                const quest = questService.createQuest(
+                const quest = await questService.createQuest(
                     interaction.guildId,
                     interaction.user.id,
                     {

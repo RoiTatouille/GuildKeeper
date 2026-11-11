@@ -1,6 +1,10 @@
 import { validateDiscordId } from '../utils/validateDiscordId.js';
 
-export function createQuestService(questRepository) {
+export function createQuestService(
+    questRepository,
+    guildRepository,
+    questPublisher
+) {
     function validateQuestId(questId) {
         if (!Number.isSafeInteger(questId) || questId <= 0) {
             throw new Error('Identifiant de quête invalide');
@@ -48,12 +52,12 @@ export function createQuestService(questRepository) {
         }
     }
 
-    function createQuest(discordGuildId, createdByDiscordId, data) {
+    async function createQuest(discordGuildId, createdByDiscordId, data) {
         validateDiscordId(discordGuildId);
         validateDiscordId(createdByDiscordId);
         validateQuestData(data);
 
-        return questRepository.create(
+        const quest = questRepository.create(
             discordGuildId,
             data.title.trim(),
             data.description.trim(),
@@ -63,6 +67,50 @@ export function createQuestService(questRepository) {
             data.maxPlayers,
             createdByDiscordId
         );
+
+        const guild = guildRepository.findByDiscordId(discordGuildId);
+
+        if (!guild?.activeQuestsChannelId) {
+            questRepository.cancel(discordGuildId, quest.id);
+            throw new Error('Aucun salon de quêtes configuré');
+        }
+
+        let discordMessageId = null;
+
+        try {
+            discordMessageId = await questPublisher.publishQuest(
+                discordGuildId,
+                guild.activeQuestsChannelId,
+                quest
+            );
+
+            const saved = questRepository.setDiscordMessageId(
+                discordGuildId,
+                quest.id,
+                discordMessageId
+            );
+
+            if (!saved) {
+                throw new Error('Impossible d’enregistrer le post Discord');
+            }
+
+            return questRepository.findById(discordGuildId, quest.id);
+        } catch (error) {
+            if (discordMessageId) {
+                try {
+                    await questPublisher.deleteQuestPost(
+                        guild.activeQuestsChannelId,
+                        discordMessageId
+                    );
+                } catch (cleanupError) {
+                    console.error('Impossible de supprimer le post Discord :', cleanupError);
+                }
+            }
+
+            questRepository.cancel(discordGuildId, quest.id);
+
+            throw new Error(`Échec de publication de la quête : ${error.message}`);
+        }
     }
 
     function editQuest(discordGuildId, questId, data) {
