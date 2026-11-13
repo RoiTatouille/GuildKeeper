@@ -1,3 +1,4 @@
+import { formatQuestContent } from '../utils/formatQuestContent.js';
 import { validateDiscordId } from '../utils/validateDiscordId.js';
 
 export function createQuestService(
@@ -17,6 +18,7 @@ export function createQuestService(
         requirements,
         xpReward,
         minLevel,
+        minPlayers,
         maxPlayers
     }) {
         if (typeof title !== 'string' || !title.trim() || title.trim().length > 100) {
@@ -39,6 +41,17 @@ export function createQuestService(
             throw new Error('Les prérequis ne peuvent pas dépasser 1000 caractères');
         }
 
+        if (formatQuestContent({
+            description,
+            requirements,
+            minLevel,
+            minPlayers,
+            maxPlayers,
+            xpReward
+        }).length > 2000) {
+            throw new Error('Le contenu de la quête dépasse la limite de 2000 caracteres');
+        }
+
         if (!Number.isSafeInteger(xpReward) || xpReward < 0) {
             throw new Error('XP erroné');
         }
@@ -49,6 +62,13 @@ export function createQuestService(
 
         if (!Number.isSafeInteger(maxPlayers) || maxPlayers < 1) {
             throw new Error('nombre maximum de joueurs doit être >= 1');
+        }
+
+        if (!Number.isSafeInteger(minPlayers) || minPlayers < 1) {
+            throw new Error('Le nombre minimum de joueurs doit être >= 1');
+        }
+        if (minPlayers > maxPlayers) {
+            throw new Error('Le nombre minimum de joueurs est supérieur au maximum');
         }
     }
 
@@ -64,6 +84,7 @@ export function createQuestService(
             data.requirements?.trim() || null,
             data.xpReward,
             data.minLevel,
+            data.minPlayers,
             data.maxPlayers,
             createdByDiscordId
         );
@@ -133,6 +154,7 @@ export function createQuestService(
             requirements: data.requirements ?? quest.requirements,
             xpReward: data.xpReward ?? quest.xpReward,
             minLevel: data.minLevel ?? quest.minLevel,
+            minPlayers: data.minPlayers ?? quest.minPlayers,
             maxPlayers: data.maxPlayers ?? quest.maxPlayers
         };
 
@@ -169,6 +191,7 @@ export function createQuestService(
             normalizedData.requirements,
             normalizedData.xpReward,
             normalizedData.minLevel,
+            normalizedData.minPlayers,
             normalizedData.maxPlayers
         );
 

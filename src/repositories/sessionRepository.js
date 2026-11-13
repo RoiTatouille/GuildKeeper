@@ -7,6 +7,7 @@ export function findQuestById(discordGuildId, questId) {
             active_quests.guild_id AS guildId,
             active_quests.title,
             active_quests.min_level AS minLevel,
+            active_quests.min_players AS minPlayers,
             active_quests.max_players AS maxPlayers,
             active_quests.discord_message_id AS discordMessageId,
             guilds.active_quests_channel_id AS activeQuestsChannelId,

@@ -112,6 +112,10 @@ export function createSessionService(sessionRepository, questPublisher) {
             );
         }
 
+        if (players.size < quest.minPlayers) {
+            throw new Error('Le nombre de participants est inférieur au minimum requis');
+        }
+
         if (players.size > quest.maxPlayers) {
             throw new Error('Le nombre de participants dépasse la limite de cette quête');
         }
