@@ -1,4 +1,5 @@
 import { ChannelType } from 'discord.js';
+import { formatQuestContent } from '../utils/formatQuestContent.js';
 
 let client;
 
@@ -7,15 +8,7 @@ export function setDiscordClient(discordClient) {
 }
 
 function buildQuestContent(quest) {
-    return [
-        quest.description,
-        quest.requirements
-            ? `**Prérequis :**\n${quest.requirements}`
-            : null,
-        `**Niveau min :** ${quest.minLevel}`,
-        `**Joueurs max :** ${quest.maxPlayers}`,
-        `**Récompense :** ${quest.xpReward} XP`
-    ].filter(Boolean).join('\n\n');
+    return formatQuestContent(quest);
 }
 
 export async function publishQuest(discordGuildId, channelId, quest) {

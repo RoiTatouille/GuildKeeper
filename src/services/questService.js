@@ -1,3 +1,4 @@
+import { formatQuestContent } from '../utils/formatQuestContent.js';
 import { validateDiscordId } from '../utils/validateDiscordId.js';
 
 export function createQuestService(
@@ -37,6 +38,16 @@ export function createQuestService(
             (typeof requirements !== 'string' || requirements.trim().length > 1000)
         ) {
             throw new Error('Les prérequis ne peuvent pas dépasser 1000 caractères');
+        }
+
+        if (formatQuestContent({
+            description,
+            requirements,
+            minLevel,
+            maxPlayers,
+            xpReward
+        }).length > 2000) {
+            throw new Error('Le contenu de la quête dépasse la limite de 2000 caracteres');
         }
 
         if (!Number.isSafeInteger(xpReward) || xpReward < 0) {
