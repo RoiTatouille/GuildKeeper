@@ -7,6 +7,7 @@ const createQuestTransaction = db.transaction((
     requirements,
     xpReward,
     minLevel,
+    minPlayers,
     maxPlayers,
     createdByDiscordId,
 ) => {
@@ -30,10 +31,11 @@ const createQuestTransaction = db.transaction((
             requirements,
             xp_reward,
             min_level,
+            min_players,
             max_players,
             created_by_discord_id
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
         guild.id,
         title,
@@ -41,6 +43,7 @@ const createQuestTransaction = db.transaction((
         requirements,
         xpReward,
         minLevel,
+        minPlayers,
         maxPlayers,
         createdByDiscordId
     );
@@ -55,6 +58,7 @@ export function create(
     requirements,
     xpReward,
     minLevel,
+    minPlayers,
     maxPlayers,
     createdByDiscordId
 ) {
@@ -65,6 +69,7 @@ export function create(
         requirements,
         xpReward,
         minLevel,
+        minPlayers,
         maxPlayers,
         createdByDiscordId
     );
@@ -80,6 +85,7 @@ export function findById(discordGuildId, questId) {
             active_quests.requirements,
             active_quests.xp_reward AS xpReward,
             active_quests.min_level AS minLevel,
+            active_quests.min_players AS minPlayers,
             active_quests.max_players AS maxPlayers,
             active_quests.status,
             active_quests.discord_message_id AS discordMessageId,
@@ -103,6 +109,7 @@ export function findAllByGuild(discordGuildId) {
             active_quests.requirements,
             active_quests.xp_reward AS xpReward,
             active_quests.min_level AS minLevel,
+            active_quests.min_players AS minPlayers,
             active_quests.max_players AS maxPlayers,
             active_quests.status,
             active_quests.discord_message_id AS discordMessageId,
@@ -122,6 +129,7 @@ export function update(
     requirements,
     xpReward,
     minLevel,
+    minPlayers,
     maxPlayers
 ) {
     const result = db.prepare(`
@@ -132,6 +140,7 @@ export function update(
             requirements = ?,
             xp_reward = ?,
             min_level = ?,
+            min_players = ?,
             max_players = ?,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
@@ -147,6 +156,7 @@ export function update(
         requirements,
         xpReward,
         minLevel,
+        minPlayers,
         maxPlayers,
         questId,
         discordGuildId

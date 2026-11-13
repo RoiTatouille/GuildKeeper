@@ -18,6 +18,7 @@ export function createQuestService(
         requirements,
         xpReward,
         minLevel,
+        minPlayers,
         maxPlayers
     }) {
         if (typeof title !== 'string' || !title.trim() || title.trim().length > 100) {
@@ -44,6 +45,7 @@ export function createQuestService(
             description,
             requirements,
             minLevel,
+            minPlayers,
             maxPlayers,
             xpReward
         }).length > 2000) {
@@ -61,6 +63,13 @@ export function createQuestService(
         if (!Number.isSafeInteger(maxPlayers) || maxPlayers < 1) {
             throw new Error('nombre maximum de joueurs doit être >= 1');
         }
+
+        if (!Number.isSafeInteger(minPlayers) || minPlayers < 1) {
+            throw new Error('Le nombre minimum de joueurs doit être >= 1');
+        }
+        if (minPlayers > maxPlayers) {
+            throw new Error('Le nombre minimum de joueurs est supérieur au maximum');
+        }
     }
 
     async function createQuest(discordGuildId, createdByDiscordId, data) {
@@ -75,6 +84,7 @@ export function createQuestService(
             data.requirements?.trim() || null,
             data.xpReward,
             data.minLevel,
+            data.minPlayers,
             data.maxPlayers,
             createdByDiscordId
         );
@@ -144,6 +154,7 @@ export function createQuestService(
             requirements: data.requirements ?? quest.requirements,
             xpReward: data.xpReward ?? quest.xpReward,
             minLevel: data.minLevel ?? quest.minLevel,
+            minPlayers: data.minPlayers ?? quest.minPlayers,
             maxPlayers: data.maxPlayers ?? quest.maxPlayers
         };
 
@@ -180,6 +191,7 @@ export function createQuestService(
             normalizedData.requirements,
             normalizedData.xpReward,
             normalizedData.minLevel,
+            normalizedData.minPlayers,
             normalizedData.maxPlayers
         );
 

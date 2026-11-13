@@ -37,6 +37,12 @@ export default {
                         .setRequired(true)
                         .setMinValue(1)
                 )
+                .addIntegerOption(option =>
+                    option
+                        .setName('min_players')
+                        .setDescription('Nombre minimum de joueurs')
+                        .setMinValue(1)
+                )
                 .addStringOption(option =>
                     option
                         .setName('requirements')
@@ -93,6 +99,12 @@ export default {
                 )
                 .addIntegerOption(option =>
                     option
+                        .setName('min_players')
+                        .setDescription('Nombre minimum de joueurs')
+                        .setMinValue(1)
+                )
+                .addIntegerOption(option =>
+                    option
                         .setName('min_level')
                         .setDescription('Nouveau niveau minimum')
                         .setMinValue(1)
@@ -131,6 +143,7 @@ export default {
                         requirements: interaction.options.getString('requirements'),
                         xpReward: interaction.options.getInteger('xp'),
                         minLevel: interaction.options.getInteger('min_level') ?? 1,
+                        minPlayers: interaction.options.getInteger('min_players') ?? 1,
                         maxPlayers: interaction.options.getInteger('max_players')
                     }
                 );
@@ -141,7 +154,7 @@ export default {
                         `Identifiant : ${quest.id}`,
                         `Récompense : ${quest.xpReward} XP`,
                         `Niveau minimum : ${quest.minLevel}`,
-                        `Joueurs maximum : ${quest.maxPlayers}`
+                        `Joueurs : ${quest.minPlayers} - ${quest.maxPlayers}`
                     ].join('\n')
                 });
 
@@ -160,6 +173,7 @@ export default {
                         requirements: interaction.options.getString('requirements'),
                         xpReward: interaction.options.getInteger('xp'),
                         minLevel: interaction.options.getInteger('min_level'),
+                        minPlayers: interaction.options.getInteger('min_players'),
                         maxPlayers: interaction.options.getInteger('max_players')
                     }
                 );
@@ -200,7 +214,7 @@ export default {
                     `Statut : ${quest.status}`,
                     `XP : ${quest.xpReward}`,
                     `Niveau minimum : ${quest.minLevel}`,
-                    `Joueurs maximum : ${quest.maxPlayers}`,
+                    `Joueurs : ${quest.minPlayers} - ${quest.maxPlayers}`,
                     `Requirement : ${quest.requirements !== null ? quest.requirements : ''}`,
                     `Description : ${quest.description}`
                 ].join('\n')).join('\n\n');

@@ -5,7 +5,7 @@ export function formatQuestContent(quest) {
             ? `**Prérequis :**\n${quest.requirements}`
             : null,
         `**Niveau minimum :** ${quest.minLevel}`,
-        `**Joueurs maximum :** ${quest.maxPlayers}`,
+        `**Joueurs :** ${quest.minPlayers} - ${quest.maxPlayers}`,
         `**Récompense :** ${quest.xpReward} XP`
     ].filter(Boolean).join('\n\n');
 }
