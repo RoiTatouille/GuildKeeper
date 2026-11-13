@@ -1,4 +1,4 @@
-import { ChannelType, EmbedBuilder } from 'discord.js';
+import { ChannelType } from 'discord.js';
 
 let client;
 
@@ -6,17 +6,16 @@ export function setDiscordClient(discordClient) {
     client = discordClient;
 }
 
-function buildQuestEmbed(quest) {
-    return new EmbedBuilder()
-        .setDescription(quest.description)
-        .addFields(
-            ...(quest.requirements
-                ? [{ name: 'Prérequis', value: quest.requirements }]
-                : []),
-            { name: 'Niveau minimum', value: String(quest.minLevel), inline: true },
-            { name: 'Joueurs maximum', value: String(quest.maxPlayers), inline: true },
-            { name: 'Récompense', value: `${quest.xpReward} XP`, inline: true }
-        );
+function buildQuestContent(quest) {
+    return [
+        quest.description,
+        quest.requirements
+            ? `**Prérequis :**\n${quest.requirements}`
+            : null,
+        `**Niveau min :** ${quest.minLevel}`,
+        `**Joueurs max :** ${quest.maxPlayers}`,
+        `**Récompense :** ${quest.xpReward} XP`
+    ].filter(Boolean).join('\n\n');
 }
 
 export async function publishQuest(discordGuildId, channelId, quest) {
@@ -42,12 +41,10 @@ export async function publishQuest(discordGuildId, channelId, quest) {
         throw new Error('Le tag Disponible est absent du forum');
     }
 
-    const embed = buildQuestEmbed(quest);
-
     const thread = await channel.threads.create({
-        name: quest.title,
+        name: `[#${quest.id}] ${quest.title}`,
         message: {
-            embeds: [embed]
+            content: buildQuestContent(quest)
         },
         appliedTags: [availableTag.id]
     });
@@ -76,7 +73,7 @@ export async function updateQuestPost(discordGuildId, channelId, threadId, quest
         throw new Error('Le post Discord de cette quête est introuvable');
     }
 
-    await thread.setName(quest.title);
+    await thread.setName(`[#${quest.id}] ${quest.title}`);
 
     const starterMessage = await thread.fetchStarterMessage();
 
@@ -85,7 +82,8 @@ export async function updateQuestPost(discordGuildId, channelId, threadId, quest
     }
 
     await starterMessage.edit({
-        embeds: [buildQuestEmbed(quest)]
+        content: buildQuestContent(quest),
+        embeds: []
     });
 }
 
