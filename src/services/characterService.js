@@ -2,16 +2,27 @@ export function createCharacterService(characterRepository) {
     /**
      * Adds a character to a player.
      */
-    function addCharacter(playerId, name, level = 1) {
+    function addCharacter(
+        playerId,
+        name,
+        level = 1,
+        characterClass = null,
+        rank = null
+    ) {
         validatePlayerId(playerId);
 
         const characterName = validateCharacterName(name);
         validateCharacterLevel(level);
 
+        const validatedClass = validateCharacterText(characterClass);
+        const validatedRank = validateCharacterText(rank);
+
         const character = characterRepository.create(
             playerId,
             characterName,
-            level
+            level,
+            validatedClass,
+            validatedRank
         );
 
         if (!character) throw new Error('Player not found');
@@ -45,13 +56,23 @@ export function createCharacterService(characterRepository) {
             ? currentCharacter.level
             : updates.level;
 
+        const characterClass = updates.class === undefined
+            ? currentCharacter.class
+            : validateCharacterText(updates.class);
+
+        const rank = updates.rank === undefined
+            ? currentCharacter.rank
+            : validateCharacterText(updates.rank);
+
         validateCharacterLevel(level);
 
         return characterRepository.update(
             playerId,
             characterId,
             name,
-            level
+            level,
+            characterClass,
+            rank
         );
     }
 
@@ -129,4 +150,16 @@ function validateCharacterLevel(level) {
             'Character level must be an integer greater than or equal to 1'
         );
     }
+}
+
+function validateCharacterText(value) {
+    if (value === null || value === undefined) {
+        return null;
+    }
+
+    if (typeof value !== 'string') {
+        throw new TypeError('Character property must be a string');
+    }
+
+    return value.trim() || null;
 }

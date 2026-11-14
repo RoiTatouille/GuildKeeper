@@ -23,6 +23,16 @@ data: new SlashCommandBuilder()
                     .setMinValue(1)
                     .setRequired(false)
             )
+            .addStringOption(option =>
+                option
+                    .setName('class')
+                    .setDescription('Classe du perso')
+            )
+            .addStringOption(option =>
+                option
+                    .setName('rank')
+                    .setDescription('Rang du perso')
+            )
     )
 
     .addSubcommand(subcommand =>
@@ -60,6 +70,16 @@ data: new SlashCommandBuilder()
                     .setMinValue(1)
                     .setRequired(false)
             )
+            .addStringOption(option =>
+                option
+                    .setName('class')
+                    .setDescription('Nouvelle classe du perso')
+            )
+            .addStringOption(option =>
+                option
+                    .setName('rank')
+                    .setDescription('Nouveau rang du perso')
+            )
     )
 
     .addSubcommand(subcommand =>
@@ -87,11 +107,15 @@ async execute(interaction) {
             case 'add': {
                 const name = interaction.options.getString('name');
                 const level = interaction.options.getInteger('level') ?? 1;
+                const characterClass = interaction.options.getString('class');
+                const rank = interaction.options.getString('rank');
 
                 const character = characterService.addCharacter(
                     player.id,
                     name,
-                    level
+                    level,
+                    characterClass,
+                    rank
                 );
 
                 await interaction.reply({
@@ -134,9 +158,12 @@ async execute(interaction) {
                     : interaction.member.displayName;
 
                 const characterList = characters
-                    .map(character =>
-                        `**${character.name}** — Niveau ${character.level} - ID ${character.id}`
-                    )
+                    .map(character => [
+                        `#${character.id} - ${character.name}`,
+                        `Niveau ${character.level}`,
+                        character.class ? `Classe ${character.class}` : null,
+                        character.rank ? `Rang ${character.rank}` : null
+                    ].filter(Boolean).join(' - '))
                     .join('\n');
 
                 await interaction.reply({
@@ -156,8 +183,15 @@ async execute(interaction) {
                 const characterId = interaction.options.getInteger('id');
                 const name = interaction.options.getString('name');
                 const level = interaction.options.getInteger('level');
+                const characterClass = interaction.options.getString('class');
+                const rank = interaction.options.getString('rank');
 
-                if (name === null && level === null) {
+                if (
+                    name === null &&
+                    level === null &&
+                    characterClass === null &&
+                    rank === null
+                ) {
                     await interaction.reply({
                         content: 'Tu dois fournir un nouveau nom ou un niveau',
                         ephemeral: true
@@ -170,7 +204,9 @@ async execute(interaction) {
                     characterId,
                     {
                         ...(name !== null && { name }),
-                        ...(level !== null && { level })
+                        ...(level !== null && { level }),
+                        ...(characterClass !== null && { class: characterClass }),
+                        ...(rank !== null && { rank })
                     }
                 );
 

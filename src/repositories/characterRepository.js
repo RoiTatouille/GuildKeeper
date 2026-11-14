@@ -3,13 +3,13 @@ import db from '../database/database.js';
 /**
  * Creates a character for a player
  */
-export function create(playerId, name, level) {
+export function create(playerId, name, level, characterClass, rank) {
     const result = db.prepare(`
-        INSERT INTO characters (guild_id, player_id, name, level)
-        SELECT guild_id, id, ?, ?
+        INSERT INTO characters (guild_id, player_id, name, level, class, rank)
+        SELECT guild_id, id, ?, ?, ?, ?
         FROM players
         WHERE id = ?
-    `).run(name, level, playerId);
+    `).run(name, level, characterClass, rank, playerId);
 
     if (result.changes === 0) {
         return null;
@@ -21,15 +21,24 @@ export function create(playerId, name, level) {
 /**
  * Updates a character
  */
-export function update(playerId, characterId, name, level) {
-    const result = db.prepare(`
+export function update(
+    playerId,
+    characterId,
+    name,
+    level,
+    characterClass,
+    rank
+) {
+        const result = db.prepare(`
         UPDATE characters
         SET
             name = ?,
             level = ?,
+            class = ?,
+            rank = ?,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ? AND player_id = ?
-    `).run(name, level, characterId, playerId);
+    `).run(name, level, characterClass, rank, characterId, playerId);
 
     if (result.changes === 0) {
         return null;
@@ -47,6 +56,8 @@ export function findAllByPlayerId(playerId) {
             id,
             name,
             level,
+            class,
+            rank,
             created_at AS createdAt,
             updated_at AS updatedAt
         FROM characters
@@ -64,6 +75,8 @@ export function findById(playerId, characterId) {
             id,
             name,
             level,
+            class,
+            rank,
             created_at AS createdAt,
             updated_at AS updatedAt
         FROM characters

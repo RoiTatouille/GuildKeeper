@@ -1,0 +1,5 @@
+ALTER TABLE characters
+ADD COLUMN class TEXT;
+
+ALTER TABLE characters
+ADD COLUMN rank TEXT;
