@@ -57,6 +57,32 @@ export function findActiveSlotById(discordGuildId, slotId) {
     `).get(discordGuildId, slotId) ?? null;
 }
 
+export function findAllScheduledSessions(discordGuildId) {
+    return db.prepare(`
+        SELECT
+            sessions.id,
+            sessions.reserved_by_discord_id AS reservedByDiscordId,
+            active_quests.title AS questTitle,
+            available_slots.starts_at AS startsAt,
+            available_slots.ends_at AS endsAt,
+            players.discord_user_id AS discordUserId,
+            session_players.status AS playerStatus
+        FROM sessions
+        INNER JOIN guilds ON guilds.id = sessions.guild_id
+        INNER JOIN active_quests ON active_quests.id = sessions.active_quest_id
+            AND active_quests.guild_id = sessions.guild_id
+        INNER JOIN available_slots ON available_slots.id = sessions.available_slot_id
+            AND available_slots.guild_id = sessions.guild_id
+        LEFT JOIN session_players ON session_players.session_id = sessions.id
+            AND session_players.guild_id = sessions.guild_id
+        LEFT JOIN players ON players.id = session_players.player_id
+            AND players.guild_id = sessions.guild_id
+        WHERE guilds.discord_guild_id = ?
+          AND sessions.status = 'SCHEDULED'
+        ORDER BY available_slots.starts_at ASC, sessions.id ASC
+    `).all(discordGuildId);
+}
+
 export function isSlotReserved(slotId) {
     return Boolean(db.prepare(`
         SELECT 1

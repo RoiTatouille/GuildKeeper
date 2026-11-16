@@ -30,74 +30,128 @@ export default {
                         .setRequired(true)
                         .setMaxLength(1000)
                 )
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('list')
+                .setDescription('Afficher les sessions réservées')
         ),
 
     async execute(interaction) {
-        const questId = interaction.options.getInteger('quest');
-        const slotId = interaction.options.getInteger('slot');
-        const participantsInput = interaction.options.getString('participants');
+        const subcommand = interaction.options.getSubcommand();
 
-        const mentions = [...participantsInput.matchAll(/<@!?(\d+)>/g)];
-        const remainingInput = participantsInput.replace(/<@!?\d+>/g, '').trim();
+        switch (subcommand) {
+            case 'propose': {
+                const questId = interaction.options.getInteger('quest');
+                const slotId = interaction.options.getInteger('slot');
+                const participantsInput = interaction.options.getString('participants');
 
-        if (mentions.length === 0 || remainingInput.length > 0) {
-            return interaction.reply({
-                content: 'Indique les participants uniquement avec leurs mentions Discord',
-                ephemeral: true
-            });
-        }
+                const mentions = [...participantsInput.matchAll(/<@!?(\d+)>/g)];
+                const remainingInput = participantsInput.replace(/<@!?\d+>/g, '').trim();
 
-        const participantIds = mentions.map(mention => mention[1]);
-
-        if (new Set(participantIds).size !== participantIds.length) {
-            return interaction.reply({
-                content: `Un participant ne peut être ajouté qu'une fois`,
-                ephemeral: true
-            });
-        }
-
-        try {
-            const reservation = await sessionService.proposeSession(
-                interaction.guildId,
-                questId,
-                slotId,
-                interaction.user.id,
-                participantIds
-            );
-
-            const startsAt = Math.floor(new Date(reservation.startsAt).getTime() / 1000);
-            const endsAt = Math.floor(new Date(reservation.endsAt).getTime() / 1000);
-
-            let message = [
-                `**Session réservée : ${reservation.questTitle}**`,
-                `Créneau : <t:${startsAt}:F> → <t:${endsAt}:t>`,
-                `Participants : ${reservation.playerCount}`
-            ].join('\n');
-
-            if (reservation.warnings.length > 0) {
-                message += '\n\n**Attention aux personnages sous le niveau requis**';
-
-                for (const warning of reservation.warnings) {
-                    const characters = warning.characters
-                        .map(character => `${character.name} (niveau ${character.level})`)
-                        .join(', ');
-
-                    message += `\n<@${warning.discordUserId}> : ${characters}`;
+                if (mentions.length === 0 || remainingInput.length > 0) {
+                    return interaction.reply({
+                        content: 'Indique les participants uniquement avec leurs mentions Discord',
+                        ephemeral: true
+                    });
                 }
-            }
 
-            if (reservation.discordWarning) {
-                message += `\n\n${reservation.discordWarning}`;
-            }
+                const participantIds = mentions.map(mention => mention[1]);
 
-            await interaction.reply({
-                content: message
-            });
-        } catch (error) {
-            await interaction.reply({
-                content: error.message,
-                ephemeral: true
-            });
+                if (new Set(participantIds).size !== participantIds.length) {
+                    return interaction.reply({
+                        content: `Un participant ne peut être ajouté qu'une fois`,
+                        ephemeral: true
+                    });
+                }
+
+                try {
+                    const reservation = await sessionService.proposeSession(
+                        interaction.guildId,
+                        questId,
+                        slotId,
+                        interaction.user.id,
+                        participantIds
+                    );
+
+                    const startsAt = Math.floor(new Date(reservation.startsAt).getTime() / 1000);
+                    const endsAt = Math.floor(new Date(reservation.endsAt).getTime() / 1000);
+
+                    let message = [
+                        `**Session réservée : ${reservation.questTitle}**`,
+                        `Créneau : <t:${startsAt}:F> → <t:${endsAt}:t>`,
+                        `Participants : ${reservation.playerCount}`
+                    ].join('\n');
+
+                    if (reservation.warnings.length > 0) {
+                        message += '\n\n**Attention aux personnages sous le niveau requis**';
+
+                        for (const warning of reservation.warnings) {
+                            const characters = warning.characters
+                                .map(character => `${character.name} (niveau ${character.level})`)
+                                .join(', ');
+
+                            message += `\n<@${warning.discordUserId}> : ${characters}`;
+                        }
+                    }
+
+                    if (reservation.discordWarning) {
+                        message += `\n\n${reservation.discordWarning}`;
+                    }
+
+                    await interaction.reply({
+                        content: message
+                    });
+                } catch (error) {
+                    await interaction.reply({
+                        content: error.message,
+                        ephemeral: true
+                    });
+                }
+
+                break;
+            }
+            case 'list': {
+                try {
+                    const sessions = sessionService.listScheduledSessions(
+                        interaction.guildId
+                    );
+
+                    if (sessions.length === 0) {
+                        return interaction.reply({
+                            content: 'Aucune session réservée',
+                            ephemeral: true
+                        });
+                    }
+
+                    const sessionList = sessions.map(session => {
+                        const startsAt = Math.floor(new Date(session.startsAt).getTime() / 1000);
+                        const endsAt = Math.floor(new Date(session.endsAt).getTime() / 1000);
+
+                        const participants = session.participants
+                            .map(participant => `<@${participant.discordUserId}>`)
+                            .join(', ');
+
+                        return [
+                            `**#${session.id} - ${session.questTitle}**`,
+                            `Date : <t:${startsAt}:F> → <t:${endsAt}:t>`,
+                            `MJ : <@${session.reservedByDiscordId}>`,
+                            `Participants : ${participants}`
+                        ].join('\n');
+                    });
+
+                    await interaction.reply({
+                        content: `**Sessions réservées :**\n\n${sessionList.join('\n\n')}`
+                    });
+                } catch (error) {
+                    await interaction.reply({
+                        content: error.message,
+                        ephemeral: true
+                    });
+                }
+
+                break;
+            }
         }
     }
 };
