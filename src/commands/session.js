@@ -90,7 +90,7 @@ export default {
                     const endsAt = Math.floor(new Date(reservation.endsAt).getTime() / 1000);
 
                     let message = [
-                        `**Session réservée : ${reservation.questTitle}**`,
+                        `**#${reservation.id} - Session réservée : ${reservation.questTitle}**`,
                         `Créneau : <t:${startsAt}:F> → <t:${endsAt}:t>`,
                         `Participants : ${reservation.playerCount}`
                     ].join('\n');
