@@ -221,3 +221,51 @@ export async function markQuestInProgress(discordGuildId, channelId, threadId) {
 
     await thread.setAppliedTags(tags);
 }
+
+export async function markQuestAvailable(discordGuildId, channelId, threadId) {
+    if (!client) {
+        throw new Error(`Le client Discord n'est pas initialisé`);
+    }
+
+    const channel = await client.channels.fetch(channelId);
+
+    if (
+        !channel ||
+        channel.type !== ChannelType.GuildForum ||
+        channel.guildId !== discordGuildId
+    ) {
+        throw new Error(`Le salon n'est pas un forum`);
+    }
+
+    const availableTag = channel.availableTags.find(
+        tag => tag.name === 'Disponible'
+    );
+
+    if (!availableTag) {
+        throw new Error('Le tag Disponible est absent');
+    }
+
+    const thread = await channel.threads.fetch(threadId);
+
+    if (!thread) {
+        throw new Error('Le post Discord de cette quête est introuvable');
+    }
+
+    if (thread.archived) {
+        await thread.setArchived(false);
+    }
+
+    const inProgressTag = channel.availableTags.find(
+        tag => tag.name === 'En cours'
+    );
+
+    const tags = thread.appliedTags.filter(
+        tagId => tagId !== inProgressTag?.id
+    );
+
+    if (!tags.includes(availableTag.id)) {
+        tags.push(availableTag.id);
+    }
+
+    await thread.setAppliedTags(tags);
+}
