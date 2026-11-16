@@ -47,8 +47,10 @@ const cleanDatabase = db.transaction(() => {
 
 try {
     const results = cleanDatabase();
+    const total = results.reduce((sum, result) => sum + result.deleted, 0);
 
     console.log('Nettoyage terminé');
+    console.log(`Total : ${total} ligne(s) supprimée(s)`);
 
     for (const result of results) {
         console.log(`${result.table}: ${result.deleted} ligne(s) supprimée(s)`);
@@ -57,6 +59,7 @@ try {
     console.log('Configuration des guildes et migrations conservées');
 } catch (error) {
     console.error('Échec du nettoyage :', error);
+    process.exitCode = 1;
 } finally {
     db.close();
 }

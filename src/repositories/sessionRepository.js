@@ -83,6 +83,23 @@ export function findAllScheduledSessions(discordGuildId) {
     `).all(discordGuildId);
 }
 
+export function findSessionToCancel(discordGuildId, sessionId) {
+    return db.prepare(`
+        SELECT
+            sessions.id,
+            active_quests.title AS questTitle,
+            active_quests.discord_message_id AS discordMessageId,
+            guilds.active_quests_channel_id AS activeQuestsChannelId
+        FROM sessions
+        INNER JOIN guilds ON guilds.id = sessions.guild_id
+        INNER JOIN active_quests ON active_quests.id = sessions.active_quest_id
+            AND active_quests.guild_id = sessions.guild_id
+        WHERE guilds.discord_guild_id = ?
+          AND sessions.id = ?
+          AND sessions.status = 'SCHEDULED'
+    `).get(discordGuildId, sessionId) ?? null;
+}
+
 export function isSlotReserved(slotId) {
     return Boolean(db.prepare(`
         SELECT 1
@@ -90,6 +107,64 @@ export function isSlotReserved(slotId) {
         WHERE available_slot_id = ?
           AND status = 'SCHEDULED'
     `).get(slotId));
+}
+
+const cancelReservationTransaction = db.transaction((discordGuildId, sessionId) => {
+    const session = db.prepare(`
+        SELECT
+            sessions.id,
+            sessions.guild_id AS guildId,
+            sessions.active_quest_id AS questId
+        FROM sessions
+        INNER JOIN guilds ON guilds.id = sessions.guild_id
+        WHERE guilds.discord_guild_id = ?
+          AND sessions.id = ?
+          AND sessions.status = 'SCHEDULED'
+    `).get(discordGuildId, sessionId);
+
+    if (!session) {
+        return null;
+    }
+
+    const updateQuest = db.prepare(`
+        UPDATE active_quests
+        SET status = 'OPEN',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+          AND guild_id = ?
+          AND status = 'RESERVED'
+    `).run(session.questId, session.guildId);
+
+    if (updateQuest.changes !== 1) {
+        throw new Error(`Cette quête n'est plus réservée`);
+    }
+
+    const updateSession = db.prepare(`
+        UPDATE sessions
+        SET status = 'CANCELLED'
+        WHERE id = ?
+          AND guild_id = ?
+          AND status = 'SCHEDULED'
+    `).run(session.id, session.guildId);
+
+    if (updateSession.changes !== 1) {
+        throw new Error('Cette session ne peut plus être annulée');
+    }
+
+    db.prepare(`
+        DELETE FROM quest_participants
+        WHERE guild_id = ?
+          AND active_quest_id = ?
+    `).run(session.guildId, session.questId);
+
+    return {
+        id: session.id,
+        questId: session.questId
+    };
+});
+
+export function cancelReservation(discordGuildId, sessionId) {
+    return cancelReservationTransaction(discordGuildId, sessionId);
 }
 
 const createReservationTransaction = db.transaction((
@@ -178,6 +253,12 @@ const createReservationTransaction = db.transaction((
     if (updateQuest.changes !== 1) {
         throw new Error(`Cette quête n'est plus disponible`);
     }
+
+    db.prepare(`
+        DELETE FROM quest_participants
+        WHERE guild_id = ?
+        AND active_quest_id = ?
+    `).run(session.guildId, session.questId);
 
     return {
         id: Number(session.lastInsertRowid),

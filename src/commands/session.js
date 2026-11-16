@@ -35,6 +35,18 @@ export default {
             subcommand
                 .setName('list')
                 .setDescription('Afficher les sessions réservées')
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('cancel')
+                .setDescription('Annuler une session réservée')
+                .addIntegerOption(option =>
+                    option
+                        .setName('session')
+                        .setDescription('Identifiant de la session')
+                        .setRequired(true)
+                        .setMinValue(1)
+                )
         ),
 
     async execute(interaction) {
@@ -142,6 +154,33 @@ export default {
 
                     await interaction.reply({
                         content: `**Sessions réservées :**\n\n${sessionList.join('\n\n')}`
+                    });
+                } catch (error) {
+                    await interaction.reply({
+                        content: error.message,
+                        ephemeral: true
+                    });
+                }
+
+                break;
+            }
+            case 'cancel': {
+                const sessionId = interaction.options.getInteger('session');
+
+                try {
+                    const cancellation = await sessionService.cancelSession(
+                        interaction.guildId,
+                        sessionId
+                    );
+
+                    let message = `Session #${cancellation.id} annulée : ${cancellation.questTitle}`;
+
+                    if (cancellation.discordWarning) {
+                        message += `\n\n${cancellation.discordWarning}`;
+                    }
+
+                    await interaction.reply({
+                        content: message
                     });
                 } catch (error) {
                     await interaction.reply({

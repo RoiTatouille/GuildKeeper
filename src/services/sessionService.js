@@ -21,7 +21,7 @@ export function createSessionService(sessionRepository, questPublisher) {
         validateId(slotId, 'Identifiant de créneau');
 
         if (!Array.isArray(participantIds) || participantIds.length === 0) {
-            throw new Error('Aucun participant renseigné');
+            throw new Error('Aucun participant');
         }
 
         for (const participantId of participantIds) {
@@ -227,8 +227,45 @@ export function createSessionService(sessionRepository, questPublisher) {
         return [...sessions.values()];
     }
 
+    async function cancelSession(discordGuildId, sessionId) {
+        validateDiscordId(discordGuildId);
+        validateId(sessionId, 'Identifiant de session');
+
+        const session = sessionRepository.findSessionToCancel(discordGuildId, sessionId);
+
+        if (!session) {
+            throw new Error(`Cette session n'existe pas ou n'est plus réservée`);
+        }
+
+        const cancellation = sessionRepository.cancelReservation(discordGuildId, sessionId);
+
+        if (!cancellation) {
+            throw new Error(`Cette session n'est plus annulable`);
+        }
+
+        let discordWarning = null;
+
+        try {
+            await questPublisher.markQuestAvailable(
+                discordGuildId,
+                session.activeQuestsChannelId,
+                session.discordMessageId
+            );
+        } catch (error) {
+            console.error('Impossible de remettre à jour le post Discord :', error);
+            discordWarning = `La session est annulée mais le post Discord n'a pas été update`;
+        }
+
+        return {
+            ...cancellation,
+            questTitle: session.questTitle,
+            discordWarning
+        };
+    }
+
     return {
         proposeSession,
-        listScheduledSessions
+        listScheduledSessions,
+        cancelSession
     };
 }
