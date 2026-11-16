@@ -197,7 +197,38 @@ export function createSessionService(sessionRepository, questPublisher) {
         }
     }
 
+    function listScheduledSessions(discordGuildId) {
+        validateDiscordId(discordGuildId);
+
+        const sessionsRows = sessionRepository.findAllScheduledSessions(discordGuildId);
+        const sessions = new Map();
+
+        for (const row of sessionsRows) {
+            if (!sessions.has(row.id)) {
+                sessions.set(row.id, {
+                    id: row.id,
+                    questTitle: row.questTitle,
+                    startsAt: row.startsAt,
+                    endsAt: row.endsAt,
+                    reservedByDiscordId: row.reservedByDiscordId,
+                    status: 'SCHEDULED',
+                    participants: []
+                });
+            }
+
+            if (row.discordUserId !== null) {
+                sessions.get(row.id).participants.push({
+                    discordUserId: row.discordUserId,
+                    status: row.playerStatus
+                });
+            }
+        }
+
+        return [...sessions.values()];
+    }
+
     return {
-        proposeSession
+        proposeSession,
+        listScheduledSessions
     };
 }
