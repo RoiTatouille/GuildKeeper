@@ -1,5 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { questService } from '../container.js';
+import { splitMessages } from '../utils/splitMessages.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -209,19 +210,29 @@ export default {
                     return;
                 }
 
-                const message = quests.map(quest => [
-                    `**#${quest.id} — ${quest.title}**`,
-                    `Statut : ${quest.status}`,
-                    `XP : ${quest.xpReward}`,
-                    `Niveau minimum : ${quest.minLevel}`,
-                    `Joueurs : ${quest.minPlayers} - ${quest.maxPlayers}`,
-                    `Requirement : ${quest.requirements !== null ? quest.requirements : ''}`,
-                    `Description : ${quest.description}`
-                ].join('\n')).join('\n\n');
+                const messages = splitMessages(
+                    quests.map(quest => [
+                        `**#${quest.id} — ${quest.title}**`,
+                        `Statut : ${quest.status}`,
+                        `XP : ${quest.xpReward}`,
+                        `Niveau minimum : ${quest.minLevel}`,
+                        `Joueurs : ${quest.minPlayers} - ${quest.maxPlayers}`,
+                        `Requirement : ${quest.requirements ?? ''}`,
+                        `Description : ${quest.description}`
+                    ].join('\n'))
+                );
 
                 await interaction.reply({
-                    content: message
+                    content: messages[0],
+                    ephemeral: false
                 });
+
+                for (const message of messages.slice(1)) {
+                    await interaction.followUp({
+                        content: message,
+                        ephemeral: false
+                    });
+                }
             }
         } catch (error) {
             await interaction.reply({
