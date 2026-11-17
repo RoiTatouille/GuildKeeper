@@ -48,3 +48,8 @@ npm run dev
  You can on your Discord server use: ```/config quest_channel <nameOfYourActiveChannel>``` (by default this quest channel is named "quêtes-actives", rename it however you want).
 
  For the other commands please refer to the commands sections in our wiki
+
+## License
+
+**GuildKeeper** — Copyright (C) 2026 RoiTatouille.  
+This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)** — see the [LICENSE](https://github.com/RoiTatouille/GuildKeeper/blob/main/LICENSE) file for details.
