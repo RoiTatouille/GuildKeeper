@@ -1,5 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { availabilityService } from '../container.js';
+import { splitMessages } from '../utils/splitMessages.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -164,27 +165,14 @@ export default {
                         ''
                     ].join('\n');
 
-                    const messages = [];
-                    let currentMessage = header;
-
-                    for (const slot of result.slots) {
-                        const slotMessage = [
+                    const messages = splitMessages(
+                        result.slots.map(slot => [
                             `**Créneau #${slot.id}**`,
                             `Début : ${slot.startsAtFormatted}`,
                             `Fin : ${slot.endsAtFormatted}`
-                        ].join('\n');
-
-                        const separator = currentMessage === header ? '' : '\n\n';
-
-                        if (currentMessage.length + separator.length + slotMessage.length > 2000) {
-                            messages.push(currentMessage);
-                            currentMessage = header + slotMessage;
-                        } else {
-                            currentMessage += separator + slotMessage;
-                        }
-                    }
-
-                    messages.push(currentMessage);
+                        ].join('\n')),
+                        { header }
+                    );
 
                     await interaction.reply({
                         content: messages[0],
