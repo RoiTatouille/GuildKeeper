@@ -293,6 +293,13 @@ async function updateQuestStatus(discordGuildId, channelId, threadId, {
     await thread.setAppliedTags(tags);
 }
 
+export async function markQuestCompleted(discordGuildId, channelId, threadId) {
+    await updateQuestStatus(discordGuildId, channelId, threadId, {
+        targetTagName: 'Complète',
+        previousTagName: 'En cours'
+    });
+}
+
 export async function markQuestInProgress(discordGuildId, channelId, threadId) {
     await updateQuestStatus(discordGuildId, channelId, threadId, {
         targetTagName: 'En cours',

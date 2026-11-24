@@ -381,6 +381,17 @@ export function createSessionService(sessionRepository, questPublisher, guildSer
         const warnings = [];
 
         try {
+            await questPublisher.markQuestCompleted(
+                discordGuildId,
+                completion.activeQuestsChannelId,
+                completion.discordMessageId
+            );
+        } catch (error) {
+            console.error('Échec de mise à jour du tag de la quête :', error);
+            warnings.push(`Le tag du post de la quête n'a pas pu être mis à jour`);
+        }
+
+        try {
             await questPublisher.publishSessionRecap(discordGuildId, completion);
         } catch (error) {
             console.error('Échec de publication du récapitulatif XP :', error);
