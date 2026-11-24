@@ -65,7 +65,7 @@ export function findActiveByGuild(discordGuildId) {
                 SELECT 1
                 FROM sessions
                 WHERE sessions.available_slot_id = available_slots.id
-                AND sessions.status = 'SCHEDULED'
+                AND sessions.status IN ('SCHEDULED', 'COMPLETED')
             )
         ORDER BY available_slots.starts_at
     `).all(discordGuildId);
