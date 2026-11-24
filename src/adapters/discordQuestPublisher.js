@@ -11,7 +11,7 @@ function buildQuestContent(quest) {
     return formatQuestContent(quest);
 }
 
-export async function publishQuest(discordGuildId, channelId, quest) {
+async function fetchGuildChannel(discordGuildId, channelId, channelType, errorMessage) {
     if (!client) {
         throw new Error(`Le client Discord n'est pas initialisé`);
     }
@@ -20,11 +20,55 @@ export async function publishQuest(discordGuildId, channelId, quest) {
 
     if (
         !channel ||
-        channel.type !== ChannelType.GuildForum ||
+        channel.type !== channelType ||
         channel.guildId !== discordGuildId
     ) {
-        throw new Error(`Le salon configuré n'est pas un forum`);
+        throw new Error(errorMessage);
     }
+
+    return channel;
+}
+
+async function fetchQuestThread(discordGuildId, channelId, threadId) {
+    const channel = await fetchGuildChannel(
+        discordGuildId,
+        channelId,
+        ChannelType.GuildForum,
+        `Le salon configuré n'est pas un forum`
+    );
+
+    const thread = await channel.threads.fetch(threadId);
+
+    if (!thread) {
+        throw new Error('Le post Discord de cette quête est introuvable');
+    }
+
+    return thread;
+}
+
+async function fetchParticipantNames(discordGuildId, participants) {
+    const guild = await client.guilds.fetch(discordGuildId);
+
+    return Promise.all(
+        participants.map(async participant => {
+            const member = await guild.members.fetch(participant.discordUserId)
+                .catch(() => null);
+
+            return {
+                ...participant,
+                displayName: member?.displayName ?? participant.discordUserId
+            };
+        })
+    );
+}
+
+export async function publishQuest(discordGuildId, channelId, quest) {
+    const channel = await fetchGuildChannel(
+        discordGuildId,
+        channelId,
+        ChannelType.GuildForum,
+        `Le salon configuré n'est pas un forum`
+    );
 
     const availableTag = channel.availableTags.find(
         tag => tag.name === 'Disponible'
@@ -45,26 +89,78 @@ export async function publishQuest(discordGuildId, channelId, quest) {
     return thread.id;
 }
 
+export async function publishSessionRecap(discordGuildId, session) {
+    const thread = await fetchQuestThread(
+        discordGuildId,
+        session.activeQuestsChannelId,
+        session.discordMessageId
+    );
+
+    const participantIds = session.participants.map(
+        participant => participant.discordUserId
+    );
+
+    const content = [
+        `**Mission terminée : ${session.questTitle}**`,
+        `Récompense : **${session.xpAmount} XP** par aventurier`,
+        `Participants : ${participantIds.map(id => `<@${id}>`).join(', ')}`
+    ].join('\n\n');
+
+    await thread.send({
+        content,
+        allowedMentions: {
+            users: participantIds
+        }
+    });
+}
+
+export async function publishSessionAnnouncement(discordGuildId, session, deaths) {
+    const channel = await fetchGuildChannel(
+        discordGuildId,
+        session.generalChannelId,
+        ChannelType.GuildText,
+        'Le salon général configuré est introuvable ou invalide'
+    );
+
+    const participants = await fetchParticipantNames(
+        discordGuildId,
+        session.participants
+    );
+
+    let content;
+    let allowedMentions = { parse: [] };
+
+    if (deaths.length === 0) {
+        content = `Les aventuriers de la quête **${session.questTitle}** sont de retour parmi nous : ${participants.map(participant => participant.displayName).join(', ')}`;
+    } else {
+        const announcements = deaths.map(death => {
+            const participant = participants.find(
+                participant => participant.playerId === death.playerId
+            );
+
+            return `Le personnage **${death.characterName}**, appartenant à **${participant.displayName}**, est mort au cours de la quête **${session.questTitle}**`;
+        });
+
+        content = `@everyone\n${announcements.join('\n')}`;
+        allowedMentions = { parse: ['everyone'] };
+    }
+
+    await channel.send({
+        content,
+        allowedMentions
+    });
+}
+
 export async function updateQuestPost(discordGuildId, channelId, threadId, quest) {
     if (!client) {
         throw new Error(`Le client Discord n'est pas initialisé`);
     }
 
-    const channel = await client.channels.fetch(channelId);
-
-    if (
-        !channel ||
-        channel.type !== ChannelType.GuildForum ||
-        channel.guildId !== discordGuildId
-    ) {
-        throw new Error(`Le salon configuré n'est pas un forum`);
-    }
-
-    const thread = await channel.threads.fetch(threadId);
-
-    if (!thread) {
-        throw new Error('Le post Discord de cette quête est introuvable');
-    }
+    const thread = await fetchQuestThread(
+        discordGuildId,
+        channelId,
+        threadId
+    );
 
     await thread.setName(`[#${quest.id}] ${quest.title}`);
 
@@ -81,19 +177,12 @@ export async function updateQuestPost(discordGuildId, channelId, threadId, quest
 }
 
 export async function cancelQuestPost(discordGuildId, channelId, threadId) {
-    if (!client) {
-        throw new Error(`Le client Discord n'est pas initialisé`);
-    }
-
-    const channel = await client.channels.fetch(channelId);
-
-    if (
-        !channel ||
-        channel.type !== ChannelType.GuildForum ||
-        channel.guildId !== discordGuildId
-    ) {
-        throw new Error(`Le salon configuré n'est pas un forum`);
-    }
+    const channel = await fetchGuildChannel(
+        discordGuildId,
+        channelId,
+        ChannelType.GuildForum,
+        `Le salon configuré n'est pas un forum`
+    );
 
     const cancelledTag = channel.availableTags.find(
         tag => tag.name === 'Annulée'
@@ -127,21 +216,11 @@ export async function getQuestReactionUserIds(discordGuildId, channelId, threadI
         throw new Error(`Le client Discord n'est pas initialisé`);
     }
 
-    const channel = await client.channels.fetch(channelId);
-
-    if (
-        !channel ||
-        channel.type !== ChannelType.GuildForum ||
-        channel.guildId !== discordGuildId
-    ) {
-        throw new Error(`Le salon configuré n'est pas un forum`);
-    }
-
-    const thread = await channel.threads.fetch(threadId);
-
-    if (!thread) {
-        throw new Error('Le post Discord de cette quête est introuvable');
-    }
+    const thread = await fetchQuestThread(
+        discordGuildId,
+        channelId,
+        threadId
+    );
 
     const message = await thread.messages.fetch({
         message: thread.id,
@@ -162,23 +241,6 @@ export async function getQuestReactionUserIds(discordGuildId, channelId, threadI
 
     const users = await reaction.users.fetch();
 
-    console.log('Réactions disponibles :', message.reactions.cache.map(
-        reaction => ({
-            emoji: reaction.emoji.name,
-            count: reaction.count
-        })
-    ));
-
-    //DEBUG
-    console.log('Réaction récupérée :', {
-        emoji: reaction.emoji.name,
-        count: reaction.count,
-        users: [...users.keys()],
-        botId: client.user.id
-    });
-
-    console.log('Utilisateurs récupérés :', [...users.keys()]);
-
     return [...users.keys()].filter(userId => userId !== client.user.id);
 }
 
@@ -187,19 +249,12 @@ async function updateQuestStatus(discordGuildId, channelId, threadId, {
     previousTagName,
     unarchive = false
 }) {
-    if (!client) {
-        throw new Error(`Le client Discord n'est pas initialisé`);
-    }
-
-    const channel = await client.channels.fetch(channelId);
-
-    if (
-        !channel ||
-        channel.type !== ChannelType.GuildForum ||
-        channel.guildId !== discordGuildId
-    ) {
-        throw new Error(`Le salon configuré n'est pas un forum`);
-    }
+    const channel = await fetchGuildChannel(
+        discordGuildId,
+        channelId,
+        ChannelType.GuildForum,
+        `Le salon configuré n'est pas un forum`
+    );
 
     const targetTag = channel.availableTags.find(
         tag => tag.name === targetTagName

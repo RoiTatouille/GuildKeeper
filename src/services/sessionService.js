@@ -1,10 +1,95 @@
 import { validateDiscordId } from '../utils/validateDiscordId.js';
 
-export function createSessionService(sessionRepository, questPublisher) {
+export function createSessionService(sessionRepository, questPublisher, guildService) {
     function validateId(value, name) {
         if (!Number.isSafeInteger(value) || value <= 0) {
             throw new Error(`${name} invalide`);
         }
+    }
+
+    function validateDeaths(deathsInput, participantsRows) {
+        if (deathsInput === null || deathsInput === undefined) {
+            return [];
+        }
+
+        if (typeof deathsInput !== 'string') {
+            throw new Error('La liste des décès est invalide');
+        }
+
+        if (deathsInput.trim() === '') {
+            return [];
+        }
+
+        const participants = new Map();
+
+        for (const row of participantsRows) {
+            if (row.playerId === null) continue;
+
+            if (!participants.has(row.discordUserId)) {
+                participants.set(row.discordUserId, {
+                    playerId: row.playerId,
+                    characters: []
+                });
+            }
+
+            if (row.characterId !== null) {
+                participants.get(row.discordUserId).characters.push({
+                    id: row.characterId,
+                    name: row.characterName
+                });
+            }
+        }
+
+        const deaths = [];
+        const deceasedCharacterIds = new Set();
+
+        for (const entry of deathsInput.split(';')) {
+            const match = entry.trim().match(/^<@!?(\d+)>\s*:\s*(.+)$/);
+
+            if (!match) {
+                throw new Error(`Format de décès invalide : ${entry.trim()}`);
+            }
+
+            const [, discordUserId, characterName] = match;
+            const participant = participants.get(discordUserId);
+
+            if (!participant) {
+                throw new Error(`Le joueur <@${discordUserId}> ne participe pas à cette session`);
+            }
+
+            const matchingCharacters = participant.characters.filter(
+                character => character.name.toLowerCase() === characterName.trim().toLowerCase()
+            );
+
+            if (matchingCharacters.length === 0) {
+                throw new Error(
+                    `Le personnage "${characterName.trim()}" n'appartient pas à <@${discordUserId}>`
+                );
+            }
+
+            if (matchingCharacters.length > 1) {
+                throw new Error(
+                    `Plusieurs personnages de <@${discordUserId}> portent le nom "${characterName.trim()}"`
+                );
+            }
+
+            const character = matchingCharacters[0];
+
+            if (deceasedCharacterIds.has(character.id)) {
+                throw new Error(`Le personnage "${character.name}" est indiqué plusieurs fois`);
+            }
+
+            deceasedCharacterIds.add(character.id);
+
+            deaths.push({
+                playerId: participant.playerId,
+                discordUserId,
+                characterId: character.id,
+                characterName: character.name
+            });
+        }
+
+        return deaths;
     }
 
     async function proposeSession(
@@ -174,7 +259,7 @@ export function createSessionService(sessionRepository, questPublisher) {
                 );
             } catch (error) {
                 console.error('Impossible de mettre à jour le tag Discord :', error);
-                discordWarning = 'La réservation est confirmée mais le tagest incorrect';
+                discordWarning = 'La réservation est confirmée mais le tag est incorrect';
             }
 
             return {
@@ -263,9 +348,70 @@ export function createSessionService(sessionRepository, questPublisher) {
         };
     }
 
+    async function completeSession(discordGuildId, sessionId, deathsInput = '') {
+        validateDiscordId(discordGuildId);
+        validateId(sessionId, 'Identifiant de session');
+
+        const guild = guildService.getGuild(discordGuildId);
+
+        if (!guild?.generalChannelId) {
+            throw new Error(`Aucun salon général n'est configuré avec /config`);
+        }
+
+        const participantsRows = sessionRepository.findSessionForCompletion(
+            discordGuildId,
+            sessionId
+        );
+
+        if (participantsRows.length === 0) {
+            throw new Error("Cette session n'existe pas ou n'est plus réservée");
+        }
+
+        const deaths = validateDeaths(deathsInput, participantsRows);
+
+        const completion = sessionRepository.completeSession(
+            discordGuildId,
+            sessionId
+        );
+
+        if (!completion) {
+            throw new Error("Cette session n'est plus terminable");
+        }
+
+        const warnings = [];
+
+        try {
+            await questPublisher.publishSessionRecap(discordGuildId, completion);
+        } catch (error) {
+            console.error('Échec de publication du récapitulatif XP :', error);
+            warnings.push(`Le récapitulatif XP n'a pas pu être publié`);
+        }
+
+        try {
+            await questPublisher.publishSessionAnnouncement(
+                discordGuildId,
+                {
+                    ...completion,
+                    generalChannelId: guild.generalChannelId
+                },
+                deaths
+            );
+        } catch (error) {
+            console.error(`Échec de publication de fin de session :`, error);
+            warnings.push(`L'annonce de fin de session n'a pas pu être publiée`);
+        }
+
+        return {
+            ...completion,
+            deaths,
+            warnings
+        };
+    }
+
     return {
         proposeSession,
         listScheduledSessions,
-        cancelSession
+        cancelSession,
+        completeSession
     };
 }

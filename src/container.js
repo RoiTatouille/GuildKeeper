@@ -24,5 +24,6 @@ export const questService = createQuestService(
 );
 export const sessionService = createSessionService(
     sessionRepository,
-    questPublisher
+    questPublisher,
+    guildService
 );

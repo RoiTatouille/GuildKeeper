@@ -47,6 +47,25 @@ export default {
                         .setRequired(true)
                         .setMinValue(1)
                 )
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('complete')
+                .setDescription('Terminer une session et attribuer les XP')
+                .addIntegerOption(option =>
+                    option
+                        .setName('session')
+                        .setDescription('Identifiant de la session')
+                        .setRequired(true)
+                        .setMinValue(1)
+                )
+                .addStringOption(option =>
+                    option
+                        .setName('deaths')
+                        .setDescription('Décès au format @Joueur: Personnage; @Joueur: Personnage')
+                        .setRequired(false)
+                        .setMaxLength(1000)
+                )
         ),
 
     async execute(interaction) {
@@ -195,6 +214,54 @@ export default {
                         content: error.message,
                         ephemeral: true
                     });
+                }
+
+                break;
+            }
+            case 'complete': {
+                const sessionId = interaction.options.getInteger('session');
+                const deathsInput = interaction.options.getString('deaths') ?? '';
+
+                await interaction.deferReply();
+
+                try {
+                    const completion = await sessionService.completeSession(
+                        interaction.guildId,
+                        sessionId,
+                        deathsInput
+                    );
+
+                    let message = [
+                        `**Session #${completion.id} terminée : ${completion.questTitle}**`,
+                        `XP attribués : **${completion.xpAmount} XP** par participant`,
+                        `Participants récompensés : **${completion.participants.length}**`,
+                        `Décès enregistrés : **${completion.deaths.length}**`
+                    ].join('\n');
+
+                    if (completion.warnings.length > 0) {
+                        message += `\n\n**Avertissements :**\n${completion.warnings.join('\n')}`;
+                    }
+
+                    await interaction.editReply({
+                        content: message
+                    });
+                } catch (error) {
+                    console.error(`Error executing /${interaction.commandName}:`, error);
+
+                    try {
+                        const response = {
+                            content: 'Une erreur est survenue',
+                            ephemeral: true
+                        };
+
+                        if (interaction.replied || interaction.deferred) {
+                            await interaction.followUp(response);
+                        } else {
+                            await interaction.reply(response);
+                        }
+                    } catch (responseError) {
+                        console.error(`Impossible de répondre à l'interaction :`, responseError);
+                    }
                 }
 
                 break;
