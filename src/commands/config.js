@@ -16,24 +16,56 @@ export default {
                         .setRequired(true)
                         .addChannelTypes(ChannelType.GuildForum)
                 )
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('general_channel')
+                .setDescription('Définir le salon des annonces')
+                .addChannelOption(option =>
+                    option
+                        .setName('channel')
+                        .setDescription('Salon des annonces')
+                        .setRequired(true)
+                        .addChannelTypes(ChannelType.GuildText)
+                )
         ),
 
     async execute(interaction) {
+        const subcommand = interaction.options.getSubcommand();
         const channel = interaction.options.getChannel('channel');
 
         try {
-            if (channel.type !== ChannelType.GuildForum) {
-                throw new Error('Le salon doit être un forum');
+            switch (subcommand) {
+                case 'quest_channel':
+                    if (channel.type !== ChannelType.GuildForum) {
+                        throw new Error('Le salon doit être un forum');
+                    }
+
+                    guildService.setActiveQuestsChannel(
+                        interaction.guildId,
+                        channel.id
+                    );
+
+                    await interaction.reply({
+                        content: `Salon des quêtes configuré : ${channel}`
+                    });
+                    break;
+
+                case 'general_channel':
+                    if (channel.type !== ChannelType.GuildText) {
+                        throw new Error('Le salon doit être un salon textuel');
+                    }
+
+                    guildService.setGeneralChannel(
+                        interaction.guildId,
+                        channel.id
+                    );
+
+                    await interaction.reply({
+                        content: `Salon des annonces configuré : ${channel}`
+                    });
+                    break;
             }
-
-            guildService.setActiveQuestsChannel(
-                interaction.guildId,
-                channel.id
-            );
-
-            await interaction.reply({
-                content: `Salon des quêtes configuré : ${channel}`
-            });
         } catch (error) {
             await interaction.reply({
                 content: error.message,
