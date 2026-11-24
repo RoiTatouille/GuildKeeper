@@ -89,10 +89,15 @@ export default {
                     const startsAt = Math.floor(new Date(reservation.startsAt).getTime() / 1000);
                     const endsAt = Math.floor(new Date(reservation.endsAt).getTime() / 1000);
 
+                    const participantMentions = participantIds
+                        .map(id => `<@${id}>`)
+                        .join(', ');
+
                     let message = [
                         `**#${reservation.id} - Session réservée : ${reservation.questTitle}**`,
                         `Créneau : <t:${startsAt}:F> → <t:${endsAt}:t>`,
-                        `Participants : ${reservation.playerCount}`
+                        `MJ : <@${interaction.user.id}>`,
+                        `Participants : ${participantMentions}`
                     ].join('\n');
 
                     if (reservation.warnings.length > 0) {
@@ -112,7 +117,10 @@ export default {
                     }
 
                     await interaction.reply({
-                        content: message
+                        content: message,
+                        allowedMentions: {
+                            users: [...new Set([interaction.user.id, ...participantIds])]
+                        }
                     });
                 } catch (error) {
                     await interaction.reply({
