@@ -19,8 +19,21 @@ export function createGuildService(guildRepository) {
         return guildRepository.findByDiscordId(discordGuildId);
     }
 
+    function setGeneralChannel(discordGuildId, channelId) {
+        validateDiscordId(discordGuildId);
+        validateDiscordId(channelId);
+
+        guildRepository.updateGeneralChannel(
+            discordGuildId,
+            channelId
+        );
+
+        return true;
+    }
+
     return {
         setActiveQuestsChannel,
+        setGeneralChannel,
         getGuild
     };
 }
