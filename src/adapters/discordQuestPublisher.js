@@ -182,7 +182,11 @@ export async function getQuestReactionUserIds(discordGuildId, channelId, threadI
     return [...users.keys()].filter(userId => userId !== client.user.id);
 }
 
-export async function markQuestInProgress(discordGuildId, channelId, threadId) {
+async function updateQuestStatus(discordGuildId, channelId, threadId, {
+    targetTagName,
+    previousTagName,
+    unarchive = false
+}) {
     if (!client) {
         throw new Error(`Le client Discord n'est pas initialisé`);
     }
@@ -197,12 +201,20 @@ export async function markQuestInProgress(discordGuildId, channelId, threadId) {
         throw new Error(`Le salon configuré n'est pas un forum`);
     }
 
-    const inProgressTag = channel.availableTags.find(
-        tag => tag.name === 'En cours'
+    const targetTag = channel.availableTags.find(
+        tag => tag.name === targetTagName
     );
 
-    if (!inProgressTag) {
-        throw new Error('Le tag En cours est absent du forum');
+    if (!targetTag) {
+        throw new Error(`Le tag ${targetTagName} est absent du forum`);
+    }
+
+    const previousTag = channel.availableTags.find(
+        tag => tag.name === previousTagName
+    );
+
+    if (!previousTag) {
+        throw new Error(`Le tag ${previousTagName} est absent du forum`);
     }
 
     const thread = await channel.threads.fetch(threadId);
@@ -211,61 +223,32 @@ export async function markQuestInProgress(discordGuildId, channelId, threadId) {
         throw new Error('Le post Discord de cette quête est introuvable');
     }
 
+    if (unarchive && thread.archived) {
+        await thread.setArchived(false);
+    }
+
     const tags = thread.appliedTags.filter(
-        tagId => tagId !== channel.availableTags.find(tag => tag.name === 'Disponible')?.id
+        tagId => tagId !== previousTag.id
     );
 
-    if (!tags.includes(inProgressTag.id)) {
-        tags.push(inProgressTag.id);
+    if (!tags.includes(targetTag.id)) {
+        tags.push(targetTag.id);
     }
 
     await thread.setAppliedTags(tags);
 }
 
+export async function markQuestInProgress(discordGuildId, channelId, threadId) {
+    await updateQuestStatus(discordGuildId, channelId, threadId, {
+        targetTagName: 'En cours',
+        previousTagName: 'Disponible'
+    });
+}
+
 export async function markQuestAvailable(discordGuildId, channelId, threadId) {
-    if (!client) {
-        throw new Error(`Le client Discord n'est pas initialisé`);
-    }
-
-    const channel = await client.channels.fetch(channelId);
-
-    if (
-        !channel ||
-        channel.type !== ChannelType.GuildForum ||
-        channel.guildId !== discordGuildId
-    ) {
-        throw new Error(`Le salon n'est pas un forum`);
-    }
-
-    const availableTag = channel.availableTags.find(
-        tag => tag.name === 'Disponible'
-    );
-
-    if (!availableTag) {
-        throw new Error('Le tag Disponible est absent');
-    }
-
-    const thread = await channel.threads.fetch(threadId);
-
-    if (!thread) {
-        throw new Error('Le post Discord de cette quête est introuvable');
-    }
-
-    if (thread.archived) {
-        await thread.setArchived(false);
-    }
-
-    const inProgressTag = channel.availableTags.find(
-        tag => tag.name === 'En cours'
-    );
-
-    const tags = thread.appliedTags.filter(
-        tagId => tagId !== inProgressTag?.id
-    );
-
-    if (!tags.includes(availableTag.id)) {
-        tags.push(availableTag.id);
-    }
-
-    await thread.setAppliedTags(tags);
+    await updateQuestStatus(discordGuildId, channelId, threadId, {
+        targetTagName: 'Disponible',
+        previousTagName: 'En cours',
+        unarchive: true
+    });
 }
