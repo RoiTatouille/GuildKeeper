@@ -36,6 +36,7 @@ export function findPlayersByDiscordUserIds(discordGuildId, discordUserIds) {
         FROM players
         INNER JOIN guilds ON guilds.id = players.guild_id
         LEFT JOIN characters ON characters.player_id = players.id
+            AND characters.guild_id = players.guild_id
         WHERE guilds.discord_guild_id = ?
           AND players.discord_user_id IN (${placeholders})
         ORDER BY players.id, characters.name COLLATE NOCASE
@@ -81,6 +82,28 @@ export function findAllScheduledSessions(discordGuildId) {
           AND sessions.status = 'SCHEDULED'
         ORDER BY available_slots.starts_at ASC, sessions.id ASC
     `).all(discordGuildId);
+}
+
+export function findSessionForCompletion(discordGuildId, sessionId) {
+    return db.prepare(`
+        SELECT
+            sessions.id,
+            players.id AS playerId,
+            players.discord_user_id AS discordUserId,
+            characters.id AS characterId,
+            characters.name AS characterName
+        FROM sessions
+        INNER JOIN guilds ON guilds.id = sessions.guild_id
+        LEFT JOIN session_players ON session_players.session_id = sessions.id
+            AND session_players.guild_id = sessions.guild_id
+        LEFT JOIN players ON players.id = session_players.player_id
+            AND players.guild_id = sessions.guild_id
+        LEFT JOIN characters ON characters.player_id = players.id
+        WHERE guilds.discord_guild_id = ?
+          AND sessions.id = ?
+          AND sessions.status = 'SCHEDULED'
+        ORDER BY players.id, characters.id
+    `).all(discordGuildId, sessionId);
 }
 
 export function findSessionToCancel(discordGuildId, sessionId) {
@@ -165,6 +188,133 @@ const cancelReservationTransaction = db.transaction((discordGuildId, sessionId) 
 
 export function cancelReservation(discordGuildId, sessionId) {
     return cancelReservationTransaction(discordGuildId, sessionId);
+}
+
+const completeSessionTransaction = db.transaction((discordGuildId, sessionId) => {
+    const session = db.prepare(`
+        SELECT
+            sessions.id,
+            sessions.guild_id AS guildId,
+            sessions.active_quest_id AS questId,
+            active_quests.title AS questTitle,
+            active_quests.xp_reward AS xpReward,
+            active_quests.max_players AS maxPlayers,
+            active_quests.discord_message_id AS discordMessageId,
+            guilds.active_quests_channel_id AS activeQuestsChannelId,
+            guilds.general_channel_id AS generalChannelId
+        FROM sessions
+        INNER JOIN guilds ON guilds.id = sessions.guild_id
+        INNER JOIN active_quests ON active_quests.id = sessions.active_quest_id
+            AND active_quests.guild_id = sessions.guild_id
+        WHERE guilds.discord_guild_id = ?
+          AND sessions.id = ?
+          AND sessions.status = 'SCHEDULED'
+          AND active_quests.status = 'RESERVED'
+    `).get(discordGuildId, sessionId);
+
+    if (!session) {
+        return null;
+    }
+
+    const participants = db.prepare(`
+        SELECT
+            players.id AS playerId,
+            players.discord_user_id AS discordUserId
+        FROM session_players
+        INNER JOIN players ON players.id = session_players.player_id
+            AND players.guild_id = session_players.guild_id
+        WHERE session_players.guild_id = ?
+          AND session_players.session_id = ?
+    `).all(session.guildId, session.id);
+
+    if (participants.length === 0) {
+        throw new Error('Cette session ne possède aucun participant');
+    }
+
+    const multiplier = participants.length > session.maxPlayers ? 0.5 : 1;
+    const xpAmount = Math.floor(session.xpReward * multiplier);
+
+    const updatePlayer = db.prepare(`
+        UPDATE players
+        SET total_xp = total_xp + ?,
+            sessions_played = sessions_played + 1
+        WHERE id = ?
+          AND guild_id = ?
+    `);
+
+    const insertXpHistory = db.prepare(`
+        INSERT INTO xp_history (
+            guild_id,
+            session_id,
+            player_id,
+            source_type,
+            passive_quest_id,
+            amount
+        )
+        VALUES (?, ?, ?, 'ACTIVE_QUEST', NULL, ?)
+    `);
+
+    for (const participant of participants) {
+        const result = updatePlayer.run(
+            xpAmount,
+            participant.playerId,
+            session.guildId
+        );
+
+        if (result.changes !== 1) {
+            throw new Error(`Impossible de mettre à jour les statistiques`);
+        }
+
+        insertXpHistory.run(
+            session.guildId,
+            session.id,
+            participant.playerId,
+            xpAmount
+        );
+    }
+
+    const updateSession = db.prepare(`
+        UPDATE sessions
+        SET status = 'COMPLETED',
+            completed_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+          AND guild_id = ?
+          AND status = 'SCHEDULED'
+    `).run(session.id, session.guildId);
+
+    if (updateSession.changes !== 1) {
+        throw new Error('Cette session ne peut plus être terminée');
+    }
+
+    const updateQuest = db.prepare(`
+        UPDATE active_quests
+        SET status = 'COMPLETED',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+          AND guild_id = ?
+          AND status = 'RESERVED'
+    `).run(session.questId, session.guildId);
+
+    if (updateQuest.changes !== 1) {
+        throw new Error('Cette quête ne peut plus être terminée');
+    }
+
+    return {
+        id: session.id,
+        questId: session.questId,
+        questTitle: session.questTitle,
+        xpReward: session.xpReward,
+        xpAmount,
+        maxPlayers: session.maxPlayers,
+        discordMessageId: session.discordMessageId,
+        activeQuestsChannelId: session.activeQuestsChannelId,
+        generalChannelId: session.generalChannelId,
+        participants
+    };
+});
+
+export function completeSession(discordGuildId, sessionId) {
+    return completeSessionTransaction(discordGuildId, sessionId);
 }
 
 const createReservationTransaction = db.transaction((
@@ -253,12 +403,6 @@ const createReservationTransaction = db.transaction((
     if (updateQuest.changes !== 1) {
         throw new Error(`Cette quête n'est plus disponible`);
     }
-
-    db.prepare(`
-        DELETE FROM quest_participants
-        WHERE guild_id = ?
-        AND active_quest_id = ?
-    `).run(session.guildId, session.questId);
 
     return {
         id: Number(session.lastInsertRowid),
