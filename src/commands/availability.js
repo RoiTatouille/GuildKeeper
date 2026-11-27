@@ -1,6 +1,7 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { availabilityService } from '../container.js';
 import { splitMessages } from '../utils/splitMessages.js';
+import { requireGuildMaster } from '../utils/requireGuildMaster.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -72,6 +73,10 @@ export default {
     async execute(interaction) {
         try {
             const subcommand = interaction.options.getSubcommand();
+
+            if (['add', 'edit', 'remove'].includes(subcommand)) {
+                if (!await requireGuildMaster(interaction)) return;
+            }
 
             switch (subcommand) {
                 case 'add': {
