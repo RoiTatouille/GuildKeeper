@@ -1,6 +1,7 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { questService } from '../container.js';
 import { splitMessages } from '../utils/splitMessages.js';
+import { requireGuildMaster } from '../utils/requireGuildMaster.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -132,6 +133,10 @@ export default {
 
     async execute(interaction) {
         const subcommand = interaction.options.getSubcommand();
+
+        if (['create', 'edit', 'cancel'].includes(subcommand)) {
+            if (!await requireGuildMaster(interaction)) return;
+        }
 
         try {
             if (subcommand === 'create') {

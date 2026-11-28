@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, ChannelType } from 'discord.js';
 import { guildService } from '../container.js';
+import { requireGuildMaster } from '../utils/requireGuildMaster.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -31,6 +32,8 @@ export default {
         ),
 
     async execute(interaction) {
+        if (!await requireGuildMaster(interaction)) return;
+
         const subcommand = interaction.options.getSubcommand();
         const channel = interaction.options.getChannel('channel');
 
