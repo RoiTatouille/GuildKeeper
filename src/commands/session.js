@@ -1,5 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { sessionService } from '../container.js';
+import { requireGuildMaster } from '../utils/requireGuildMaster.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -70,6 +71,10 @@ export default {
 
     async execute(interaction) {
         const subcommand = interaction.options.getSubcommand();
+
+        if (['complete'].includes(subcommand)) {
+            if (!await requireGuildMaster(interaction)) return;
+        }
 
         switch (subcommand) {
             case 'propose': {
